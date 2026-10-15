@@ -1,7 +1,7 @@
 import base64
 import streamlit as st
 
-st.set_page_config(page_title="Skånska Upplevelser", layout="wide")
+st.set_page_config(page_title="Skånes Smultronställen", layout="wide")
 
 #--- Konvertera till binärdata och gör om den till en textsträng
 def get_base64_image(image_path):
@@ -105,17 +105,17 @@ def visa_plats(plats_namn, kort_info, bild_url, lang_text):
 
 
 st.markdown(
-    "<h1 style='text-align: center;'>Skånska Upplevelser</h1>",
+    "<h1 style='text-align: center;'>Skånes Smultronställen</h1>",
     unsafe_allow_html=True,
 )
 st.write("")
 
 
 
-
+#Jag delar skärmen i 3 kolumner varav mitt delen blir 5/7 sjundedelar
 col1, col2, col3 = st.columns([1, 5, 1])
 
-with col2:
+with col2:     #<---- Här är den stora mitt delen av skärmen vi jobbar med
     # --- NÖJEN ---
     with st.expander("Nöjen"):
         flik1, flik2, flik3 = st.tabs(
@@ -125,21 +125,21 @@ with col2:
             visa_plats(
                 plats_namn="Ystad Djurpark",
                 kort_info="Info om Ystad Djurpark",
-                bild_url="https://placehold.co/600x300?text=Ystad+Djurpark",
+                bild_url="https://placehold.co/600x300?text=Ystad+Djurpark",  #----<< Temp placeholder
                 lang_text="Information om Ystad Djurpark, djuren, matställen och aktiviteter.",
             )
         with flik2:
             visa_plats(
                 plats_namn="Tosselilla",
                 kort_info="Info om Tosselilla",
-                bild_url="https://placehold.co/600x300?text=Tosselilla",
+                bild_url="https://placehold.co/600x300?text=Tosselilla",      #----<< Temp placeholder
                 lang_text="Information om Tosselilla Sommarland, vattenland och karuseller.",
             )
         with flik3:
             visa_plats(
                 plats_namn="Malmö Museum",
                 kort_info="Info om Malmö Museum",
-                bild_url="https://placehold.co/600x300?text=Malmo+Museum",
+                bild_url="https://placehold.co/600x300?text=Malmo+Museum",    #----<< Temp placeholder
                 lang_text="Information om Malmö Museum, slottet, akvariet och utställningarna.",
             )
 
@@ -152,21 +152,21 @@ with col2:
             visa_plats(
                 plats_namn="Glumslövs Backar",
                 kort_info="Info om Glumslövs Backar",
-                bild_url="https://placehold.co/600x300?text=Glumslovs+Backar",
+                bild_url="https://placehold.co/600x300?text=Glumslovs+Backar", #----<< Temp placeholder
                 lang_text="Information om vandringsleder och utsikten över Öresund.",
             )
         with flik2:
             visa_plats(
                 plats_namn="Söderåsens Nationalpark",
                 kort_info="Info om Söderåsens Nationalpark",
-                bild_url="https://placehold.co/600x300?text=Soderasen",
+                bild_url="https://placehold.co/600x300?text=Soderasen",        #----<< Temp placeholder
                 lang_text="Information om Kopparhatten, Skäralid och bokskogarna.",
             )
         with flik3:
             visa_plats(
                 plats_namn="Ales Stenar",
                 kort_info="Info om Ales Stenar",
-                bild_url="https://placehold.co/600x300?text=Ales+Stenar",
+                bild_url="https://placehold.co/600x300?text=Ales+Stenar",      #----<< Temp placeholder
                 lang_text="Information om skeppssättningen vid Kåseberga.",
             )
 
@@ -179,20 +179,20 @@ with col2:
             visa_plats(
                 plats_namn="Ebbas Fik",
                 kort_info="Info om Ebbas Fik",
-                bild_url="https://placehold.co/600x300?text=Ebbas+Fik",
+                bild_url="https://placehold.co/600x300?text=Ebbas+Fik",        #----<< Temp placeholder
                 lang_text="Information om 50-talsfiket i Helsingborg.",
             )
         with flik2:
             visa_plats(
                 plats_namn="Färg från förr",
                 kort_info="Info om Färg från förr",
-                bild_url="https://placehold.co/600x300?text=Farg+fran+forr",
+                bild_url="https://placehold.co/600x300?text=Farg+fran+forr",   #----<< Temp placeholder
                 lang_text="Information om Färg från förr, byggnadsvård och fika.",
             )
         with flik3:
             visa_plats(
                 plats_namn="Alice och Kattens Tesalong",
                 kort_info="Info om Alice och Kattens Tesalong",
-                bild_url="https://placehold.co/600x300?text=Alice+och+Katten",
+                bild_url="https://placehold.co/600x300?text=Alice+och+Katten",  #----<< Temp placeholder
                 lang_text="Information om tesalongen i Lund.",
             )
