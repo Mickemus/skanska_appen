@@ -1,28 +1,94 @@
+import base64
 import streamlit as st
 
 st.set_page_config(page_title="Skånes Smultronställen", layout="wide")
 
-st.markdown(
-    """
-    <style>
-    div[data-testid="stHorizontalBlock"] > div {
-        transition: all 0.1s ease-in-out;
-    }
+#--- Konvertera till binärdata och gör om den till en textsträng
+def get_base64_image(image_path):
+    with open(image_path, "rb") as img_file:
+        return base64.b64encode(img_file.read()).decode()
 
-    div[data-testid="stHorizontalBlock"]:has(details[open]) > div:nth-child(1),
-    div[data-testid="stHorizontalBlock"]:has(details[open]) > div:nth-child(3) {
-        flex: 1 1 calc(10% - 1rem) !important;
-        width: calc(10% - 1rem) !important;
-    }
-    div[data-testid="stHorizontalBlock"]:has(details[open]) > div:nth-child(2) {
-        flex: 1 1 calc(80% - 1rem) !important;
-        width: calc(80% - 1rem) !important;
-    }
+#--- Läs in bakgrundsbilden
+bg_img = get_base64_image("bakgrund.jpg")
+
+
+# ------------------------------------------------------------------------------------------------------------------
+# --- Snabbsök ---
+# ------------------------------------------------------------------------------------------------------------------
+# --- STIL ---
+
+# --- FLIKAR
+
+# --- NÖJEN ---
+# --- PLATSER ---
+# --- FIKA ---
+# ------------------------------------------------------------------------------------------------------------------
+
+
+
+
+
+# --- STIL ---
+
+
+st.markdown(
+    f"""
+    <style>
+    /*Appens Bakgrundsbild */
+             .stApp {{
+             background-image: url("data:image/jpeg;base64,{bg_img}");
+             background-size: cover;
+             background-position: center;
+             background-attachment: fixed;
+             }}
+
+    /*Appens Rubrik*/
+            h1 {{
+                color: #FFFFFF !important;
+                text-shadow: 1px 1px 1px #000000D2 !important;
+             }}
+            
+
+    /*Appens Expanders*/
+         /*Bakgrund*/  
+         div[data-testid="stExpander"] {{
+                background-color: #F3E2C3;
+                border-radius: 10px;
+            }}
+
+        /*Knapparnas bakgrund*/
+            div[data-testid="stExpander"] 
+            summary {{
+                background-color: #ECCF9D !important;
+                border-radius: 10px;
+            }}
+    
+        /*Text*/
+            div[data-testid="stExpander"] 
+            summary p {{
+                color: #000000 !important;
+                font-weight: bold;
+                font-size: 1.4rem;
+            }}
+
+        /*Brödtext*/
+            div[data-testid="stExpanderDetails"] p, 
+            div[data-testid="stExpanderDetails"] span,
+            button[data-baseweb="tab"] p {{
+                color: #000000 !important; /* Mörkgrå textfärg för allt innehåll */
+            }}
     </style>
     """,
     unsafe_allow_html=True,
 )
 
+
+# --- Slut STIL ---
+
+
+# ------------------------------------------------------------------------------------------------------------------
+# --- FLIKAR -Expanders -Tabs -Flikar
+# ------------------------------------------------------------------------------------------------------------------
 
 def visa_plats(plats_namn, kort_info, bild_url, lang_text):
     st.write(kort_info)
@@ -44,7 +110,10 @@ st.markdown(
 )
 st.write("")
 
-col1, col2, col3 = st.columns([1, 1, 1])
+
+
+
+col1, col2, col3 = st.columns([1, 5, 1])
 
 with col2:
     # --- NÖJEN ---
