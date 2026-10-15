@@ -1,7 +1,7 @@
 import base64
 import streamlit as st
 
-st.set_page_config(page_title="Skånes Smultronställen", layout="wide")
+st.set_page_config(page_title="Skånska Upplevelser", layout="wide")
 
 #--- Konvertera till binärdata och gör om den till en textsträng
 def get_base64_image(image_path):
