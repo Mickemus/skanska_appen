@@ -1,7 +1,7 @@
 import base64
 import streamlit as st
 
-st.set_page_config(page_title="Skånes Smultronställen", layout="wide")
+st.set_page_config(page_title="Skånska Upplevelser", layout="wide")
 
 #--- Konvertera till binärdata och gör om den till en textsträng
 def get_base64_image(image_path):
@@ -105,7 +105,7 @@ def visa_plats(plats_namn, kort_info, bild_url, lang_text):
 
 
 st.markdown(
-    "<h1 style='text-align: center;'>Skånes Smultronställen</h1>",
+    "<h1 style='text-align: center;'>Skånska Upplevelser</h1>",
     unsafe_allow_html=True,
 )
 st.write("")
