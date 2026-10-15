@@ -105,7 +105,7 @@ def visa_plats(plats_namn, kort_info, bild_url, lang_text):
 
 
 st.markdown(
-    "<h1 style='text-align: center;'>Skånes Smultronställen</h1>",
+    "<h1 style='text-align: center;'>Skånska Upplevelser</h1>",
     unsafe_allow_html=True,
 )
 st.write("")
