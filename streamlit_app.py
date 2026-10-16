@@ -1,6 +1,10 @@
 import base64
 import streamlit as st
 
+
+#Streamlit commads https://docs.streamlit.io/develop/quick-reference/cheat-sheet
+
+
 st.set_page_config(page_title="Skånska Upplevelser", layout="wide")
 
 #--- Konvertera till binärdata och gör om den till en textsträng
@@ -66,8 +70,8 @@ st.markdown(
         /*Text*/
             div[data-testid="stExpander"] 
             summary p {{
-                color: #000000 !important;
-                font-weight: bold;
+                color: #FFFFFF !important;
+                text-shadow: 1px 1px 1px #000000D2 !important;
                 font-size: 1.4rem;
             }}
 
@@ -75,7 +79,7 @@ st.markdown(
             div[data-testid="stExpanderDetails"] p, 
             div[data-testid="stExpanderDetails"] span,
             button[data-baseweb="tab"] p {{
-                color: #000000 !important; /* Mörkgrå textfärg för allt innehåll */
+                color: #000000 !important; 
             }}
     </style>
     """,
