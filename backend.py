@@ -107,14 +107,19 @@ ALLA_AKTIVITETER = [
 # Databaskoppling
 # ----------------------------------------
 def get_db_connection():
-    return mysql.connector.connect(
-        host=st.secrets["DB_HOST"].replace(":3306", ""),  # Säkerställer att porten inte ligger i host-strängen
-        port=3306,
-        user=st.secrets["DB_USER"],
-        password=st.secrets["DB_PASSWORD"],
-        database=st.secrets["DB_NAME"],
-         connection_timeout=10,
-    )
+    try:
+        return mysql.connector.connect(
+            host=st.secrets["DB_HOST"].replace(":3306", "").strip(),
+            port=3306,
+            user=st.secrets["DB_USER"].strip(),
+            password=st.secrets["DB_PASSWORD"],
+            database=st.secrets["DB_NAME"].strip(),
+            connection_timeout=5,
+        )
+    except Exception as err:
+        st.error(f"🚨 Kunde inte ansluta till databasen: {err}")
+        print(f"CRITICAL DB CONNECTION ERROR: {err}")
+        raise
 
 def verifiera_inloggning(email, password):
     """Kollar om e-post och lösenord stämmer i tabellen customers."""
