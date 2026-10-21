@@ -118,9 +118,22 @@ def get_ssh_tunnel():
             st.secrets["DB_HOST"].replace(":3306", "").strip(),
             3306,
         ),
+        set_keepalive=30.0,  # Skickar livstecken så One.com inte kopplar ner
     )
     tunnel.start()
     return tunnel
+
+
+def _connect_mysql(port):
+    return mysql.connector.connect(
+        host="127.0.0.1",
+        port=port,
+        user=st.secrets["DB_USER"].strip(),
+        password=st.secrets["DB_PASSWORD"],
+        database=st.secrets["DB_NAME"].strip(),
+        connection_timeout=10,
+        use_pure=True,
+    )
 
 
 def get_db_connection():
@@ -128,20 +141,21 @@ def get_db_connection():
         tunnel = get_ssh_tunnel()
         if not tunnel.is_active:
             tunnel.restart()
-
-        return mysql.connector.connect(
-            host="127.0.0.1",
-            port=tunnel.local_bind_port,
-            user=st.secrets["DB_USER"].strip(),
-            password=st.secrets["DB_PASSWORD"],
-            database=st.secrets["DB_NAME"].strip(),
-            connection_timeout=10,
-            use_pure=True,
-        )
+        try:
+            return _connect_mysql(tunnel.local_bind_port)
+        except Exception:
+            # Om tunneln har dött i bakgrunden: rensa cachen och öppna en ny tunnel
+            try:
+                tunnel.stop()
+            except Exception:
+                pass
+            get_ssh_tunnel.clear()
+            tunnel = get_ssh_tunnel()
+            return _connect_mysql(tunnel.local_bind_port)
     except Exception as err:
         st.error(f"🚨 Kunde inte ansluta till databasen: {err}")
         print(f"CRITICAL DB CONNECTION ERROR: {err}")
-        raise
+        raise mysql.connector.Error(str(err))
 
 def verifiera_inloggning(email, password):
     """Kollar om e-post och lösenord stämmer i tabellen customers."""
