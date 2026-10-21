@@ -385,11 +385,14 @@ def visa_kvitto_modal():
 BASE_DIR = Path(__file__).parent
 
 def get_base64_image(image_name):
-    try:
-        with open(BASE_DIR / image_name, "rb") as img_file:
-            return base64.b64encode(img_file.read()).decode()
-    except FileNotFoundError:
-        return ""
+    bas_namn = Path(image_name).stem
+    filer_i_mappen = {f.name.lower(): f for f in BASE_DIR.iterdir() if f.is_file()}
+    for namn in [image_name, f"{image_name}.jpg", f"{bas_namn}.jpg", f"{bas_namn}.jpeg", f"{bas_namn}.png", f"{bas_namn}.webp"]:
+        matchad_fil = filer_i_mappen.get(namn.lower())
+        if matchad_fil:
+            return base64.b64encode(matchad_fil.read_bytes()).decode()
+    print(f"[VARNING] Hittade inte bakgrundsbilden '{image_name}' i {BASE_DIR}")
+    return ""
 
 bg_img = get_base64_image("bakgrund.jpg")
 bg_css = (

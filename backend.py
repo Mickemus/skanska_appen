@@ -22,15 +22,72 @@ VECKODAGAR = {
 }
 
 def lokal_bild_till_url(filnamn, fallback_text="Bild+saknas"):
-    """Läser in en lokal bild i samma mapp och gör om den till en Base64-URL för HTML <img>."""
-    bild_sokvag = BASE_DIR / filnamn
-    if bild_sokvag.exists():
-        ext = bild_sokvag.suffix.lower().lstrip(".")
-        mime = "jpeg" if ext in ("jpg", "jpeg") else ext
-        b64_data = base64.b64encode(bild_sokvag.read_bytes()).decode("utf-8")
-        return f"data:image/{mime};base64,{b64_data}"
-    # Om filen inte hittas i mappen används placehold.co som reserv
+    """Hittar en lokal bild i samma mapp (även med annan/dubbel filändelse) och gör om till Base64-URL."""
+    bas_namn = Path(filnamn).stem
+    mojliga_namn = [
+        filnamn,
+        f"{filnamn}.jpg",
+        f"{filnamn}.png",
+        f"{bas_namn}.jpg",
+        f"{bas_namn}.jpeg",
+        f"{bas_namn}.png",
+        f"{bas_namn}.webp",
+    ]
+
+    # Sök igenom mappen skiftlägesokänsligt (hanterar t.ex. .JPG och .PNG)
+    filer_i_mappen = {f.name.lower(): f for f in BASE_DIR.iterdir() if f.is_file()}
+
+    for namn in mojliga_namn:
+        matchad_fil = filer_i_mappen.get(namn.lower())
+        if matchad_fil:
+            ext = matchad_fil.suffix.lower().lstrip(".")
+            mime = "jpeg" if ext in ("jpg", "jpeg") else ext
+            b64_data = base64.b64encode(matchad_fil.read_bytes()).decode("utf-8")
+            return f"data:image/{mime};base64,{b64_data}"
+
+    # Om filen inte hittas skrivs en varning ut i terminalen
+    print(f"[VARNING] Hittade inte bildfilen '{filnamn}' i {BASE_DIR}")
     return f"https://placehold.co/600x300?text={fallback_text}"
+
+
+BILD_FILER = {
+    ("amusement", 1): ("ystad_djurpark.jpg", "Ystad+Djurpark"),
+    ("amusement", 2): ("tosselilla.jpg", "Tosselilla"),
+    ("amusement", 3): ("malmo_museum.jpg", "Malmo+Museum"),
+    ("place", 1): ("glumslovs_backar.jpg", "Glumslovs+Backar"),
+    ("place", 2): ("soderasen.jpg", "Soderasen"),
+    ("place", 3): ("ales_stenar.jpg", "Ales+Stenar"),
+    ("fika", 1): ("ebbas_fik.jpg", "Ebbas+Fik"),
+    ("fika", 2): ("farg_fran_forr.jpg", "Farg+fran+forr"),
+    ("fika", 3): ("alice_och_katten.jpg", "Alice+och+Katten"),
+}
+
+#Reservkoppling via namn om databasen har andra ID-nummer än 1, 2, 3
+BILD_FILER_NAMN = {
+    "ystad djurpark": "ystad_djurpark.jpg",
+    "tosselilla": "tosselilla.jpg",
+    "malmö museum": "malmo_museum.jpg",
+    "glumslövs backar": "glumslovs_backar.jpg",
+    "söderåsen": "soderasen.jpg",
+    "ales stenar": "ales_stenar.jpg",
+    "ebbas fik": "ebbas_fik.jpg",
+    "färg från förr": "farg_fran_forr.jpg",
+    "alice och katten": "alice_och_katten.jpg",
+}
+
+
+def hamta_bild_for_aktivitet(kategori, item_id, namn):
+    """Slår upp bild via (kategori, id) eller via platsens namn."""
+    if (kategori, item_id) in BILD_FILER:
+        fil, fallback = BILD_FILER[(kategori, item_id)]
+        return lokal_bild_till_url(fil, fallback)
+
+    namn_lower = (namn or "").lower()
+    for nyckel_ord, fil in BILD_FILER_NAMN.items():
+        if nyckel_ord in namn_lower:
+            return lokal_bild_till_url(fil, namn)
+
+    return f"https://placehold.co/600x300?text={namn}"
 
 # Byt ut filnamnen nedan mot vad dina bildfiler faktiskt heter i mappen
 BILD_KATALOG = {
@@ -185,10 +242,7 @@ def hamta_alla_aktiviteter():
                     "id": item_id,
                     "plats_namn": row["namn"],
                     "kort_info": f"📍 Kommun: {row['municipality_name']}",
-                    "bild_url": BILD_KATALOG.get(
-                        ("amusement", item_id),
-                        f"https://placehold.co/600x300?text={row['namn']}",
-                    ),
+"bild_url": hamta_bild_for_aktivitet("amusement", item_id, row["namn"]),
                     "lang_text": row["info"],
                     "municipality_id": row["municipality_id"],
                     "municipality_name": row["municipality_name"],
@@ -215,10 +269,7 @@ def hamta_alla_aktiviteter():
                     "id": item_id,
                     "plats_namn": row["namn"],
                     "kort_info": f"📍 Kommun: {row['municipality_name']}",
-                    "bild_url": BILD_KATALOG.get(
-                        ("place", item_id),
-                        f"https://placehold.co/600x300?text={row['namn']}",
-                    ),
+"bild_url": hamta_bild_for_aktivitet("place", item_id, row["namn"]),
                     "lang_text": row["info"],
                     "municipality_id": row["municipality_id"],
                     "municipality_name": row["municipality_name"],
@@ -245,10 +296,7 @@ def hamta_alla_aktiviteter():
                     "id": item_id,
                     "plats_namn": row["namn"],
                     "kort_info": f"📍 Kommun: {row['municipality_name']}",
-                    "bild_url": BILD_KATALOG.get(
-                        ("fika", item_id),
-                        f"https://placehold.co/600x300?text={row['namn']}",
-                    ),
+"bild_url": hamta_bild_for_aktivitet("Fika", item_id, row["namn"]),
                     "lang_text": row["info"],
                     "municipality_id": row["municipality_id"],
                     "municipality_name": row["municipality_name"],
