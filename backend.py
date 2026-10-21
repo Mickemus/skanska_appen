@@ -229,7 +229,7 @@ def verifiera_inloggning(email, password):
         query = """
             SELECT c.*, m.municipality_name 
             FROM customers c
-            JOIN municipalities m ON c.municipality_id = m.municipality_id
+            LEFT JOIN municipalities m ON c.municipality_id = m.municipality_id
             WHERE c.email = %s AND c.password = %s
         """
         cursor.execute(query, (email.strip(), password))
