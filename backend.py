@@ -1,6 +1,11 @@
+import base64
+from pathlib import Path
 import mysql.connector
 import streamlit as st
 from sshtunnel import SSHTunnelForwarder
+
+# Sökvägen till mappen där backend.py och bilderna ligger
+BASE_DIR = Path(__file__).parent
 
 # Konstanter för Superduperbussen
 MAX_BUSS_PLATSER = 50
@@ -16,17 +21,28 @@ VECKODAGAR = {
     7: "Söndag",
 }
 
-# Standardbilder kopplade till kategori och ID (eftersom bild-URL inte lagras i DB)
+def lokal_bild_till_url(filnamn, fallback_text="Bild+saknas"):
+    """Läser in en lokal bild i samma mapp och gör om den till en Base64-URL för HTML <img>."""
+    bild_sokvag = BASE_DIR / filnamn
+    if bild_sokvag.exists():
+        ext = bild_sokvag.suffix.lower().lstrip(".")
+        mime = "jpeg" if ext in ("jpg", "jpeg") else ext
+        b64_data = base64.b64encode(bild_sokvag.read_bytes()).decode("utf-8")
+        return f"data:image/{mime};base64,{b64_data}"
+    # Om filen inte hittas i mappen används placehold.co som reserv
+    return f"https://placehold.co/600x300?text={fallback_text}"
+
+# Byt ut filnamnen nedan mot vad dina bildfiler faktiskt heter i mappen
 BILD_KATALOG = {
-    ("amusement", 1): "https://placehold.co/600x300?text=Ystad+Djurpark",
-    ("amusement", 2): "https://placehold.co/600x300?text=Tosselilla",
-    ("amusement", 3): "https://placehold.co/600x300?text=Malmo+Museum",
-    ("place", 1): "https://placehold.co/600x300?text=Glumslovs+Backar",
-    ("place", 2): "https://placehold.co/600x300?text=Soderasen",
-    ("place", 3): "https://placehold.co/600x300?text=Ales+Stenar",
-    ("fika", 1): "https://placehold.co/600x300?text=Ebbas+Fik",
-    ("fika", 2): "https://placehold.co/600x300?text=Farg+fran+forr",
-    ("fika", 3): "https://placehold.co/600x300?text=Alice+och+Katten",
+    ("amusement", 1): lokal_bild_till_url("ystad_djurpark.jpg", "Ystad+Djurpark"),
+    ("amusement", 2): lokal_bild_till_url("tosselilla.jpg", "Tosselilla"),
+    ("amusement", 3): lokal_bild_till_url("malmo_museum.jpg", "Malmo+Museum"),
+    ("place", 1): lokal_bild_till_url("glumslovs_backar.jpg", "Glumslovs+Backar"),
+    ("place", 2): lokal_bild_till_url("soderasen.jpg", "Soderasen"),
+    ("place", 3): lokal_bild_till_url("ales_stenar.jpg", "Ales+Stenar"),
+    ("fika", 1): lokal_bild_till_url("ebbas_fik.jpg", "Ebbas+Fik"),
+    ("fika", 2): lokal_bild_till_url("farg_fran_forr.jpg", "Farg+fran+forr"),
+    ("fika", 3): lokal_bild_till_url("alice_och_katten.jpg", "Alice+och+Katten"),
 }
 
 
