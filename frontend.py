@@ -7,11 +7,32 @@ st.set_page_config(page_title="Skånska Upplevelser", layout="wide")
 
 
 # ---------
+# Session State
+# ---------
+if "user" not in st.session_state:
+    st.session_state.user = None
+
+if "valda_mal" not in st.session_state:
+    st.session_state.valda_mal = []
+
+if "valt_datum" not in st.session_state:
+    st.session_state.valt_datum = date.today()
+
+if "boknings_meddelande" not in st.session_state:
+    st.session_state.boknings_meddelande = None
+
+if "datum_varning" not in st.session_state:
+    st.session_state.datum_varning = None
+
+
+# ---------
 # Registrera ny användare
 # ---------
 @st.dialog("Registrera ny användare")
 def visa_registrering_modal():
-    st.write("Fyll i dina uppgifter nedan för att skapa ett konto hos Skånska Upplevelser.")
+    st.write(
+        "Fyll i dina uppgifter nedan för att skapa ett konto hos Skånska Upplevelser."
+    )
 
     kommuner = backend.hamta_kommuner()
     kommun_dict = {k["municipality_name"]: k["municipality_id"] for k in kommuner}
@@ -62,7 +83,9 @@ def visa_registrering_modal():
             elif "  " in fn or "  " in ln or "  " in em:
                 st.error("Fälten får inte innehålla dubbla mellanslag.")
             elif fn != fn.capitalize() or ln != ln.capitalize():
-                st.error("Förnamn och efternamn måste börja med stor bokstav följt av små bokstäver.")
+                st.error(
+                    "Förnamn och efternamn måste börja med stor bokstav följt av små bokstäver."
+                )
             elif (
                 "@" not in em
                 or "." not in em.split("@")[-1]
@@ -96,7 +119,9 @@ def visa_redigera_resa_modal():
     user = st.session_state.user
     is_admin = user["customer_id"] == 1
 
-    bokningar = backend.hamta_redigerbara_bokningar(user["customer_id"], is_admin=is_admin)
+    bokningar = backend.hamta_redigerbara_bokningar(
+        user["customer_id"], is_admin=is_admin
+    )
 
     if not bokningar:
         st.info("Det finns inga resor som kan redigeras.")
@@ -107,7 +132,9 @@ def visa_redigera_resa_modal():
         for b in bokningar
     }
 
-    vald_label = st.selectbox("Välj bokning att redigera", options=list(boknings_val.keys()))
+    vald_label = st.selectbox(
+        "Välj bokning att redigera", options=list(boknings_val.keys())
+    )
     aktuell_bokning = boknings_val[vald_label]
     b_id = aktuell_bokning["booking_id"]
 
@@ -141,7 +168,9 @@ def visa_redigera_resa_modal():
     )
 
     st.markdown("#### Välj destinationer för resan")
-    st.caption("Kryssa i eller ur destinationer. Priset räknas om automatiskt nedan.")
+    st.caption(
+        "Kryssa i eller ur destinationer. Stängda mål för valt datum är gråmarkerade."
+    )
 
     alla_aktiviteter = backend.hamta_alla_aktiviteter()
     vald_veckodag = nytt_datum.isoweekday()
@@ -159,33 +188,34 @@ def visa_redigera_resa_modal():
             for akt in alla_aktiviteter:
                 if akt["kategori"] == kat_kod:
                     nyckel = f"{akt['kategori']}_{akt['id']}"
-                    forifyll = nyckel in aktuell_bokning["valda_nycklar"]
-                    pris_txt = f"{akt['pris']:.0f} kr" if akt["pris"] > 0 else "0 kr"
                     dag_info = akt.get("oppettider", {}).get(vald_veckodag)
-                    oppet_txt = f" — {dag_info['text']}" if dag_info else ""
+                    ar_oppet = dag_info["is_open"] if dag_info else True
+
+                    forifyll = (
+                        nyckel in aktuell_bokning["valda_nycklar"] and ar_oppet
+                    )
+                    pris_txt = (
+                        f"{akt['pris']:.0f} kr" if akt["pris"] > 0 else "0 kr"
+                    )
+                    status_txt = (
+                        f" — {dag_info['text']}"
+                        if (dag_info and ar_oppet)
+                        else " — 🔒 Stängt"
+                    )
+
                     if st.checkbox(
-                        f"{akt['plats_namn']} ({pris_txt}){oppet_txt}",
+                        f"{akt['plats_namn']} ({pris_txt}){status_txt}",
                         value=forifyll,
-                        key=f"edit_chk_{b_id}_{nyckel}",
+                        disabled=not ar_oppet,
+                        key=f"edit_chk_{b_id}_{nyckel}_{nytt_datum}",
                     ):
                         nya_valda_mal.append(akt)
 
     st.divider()
 
     if len(nya_valda_mal) == 0:
-        st.warning("Du måste ha minst en destination vald i resan.")
+        st.warning("Du måste ha minst en öppen destination vald i resan.")
         return
-
-    stangda_mal = [
-        m["plats_namn"]
-        for m in nya_valda_mal
-        if not m.get("oppettider", {}).get(vald_veckodag, {}).get("is_open", True)
-    ]
-    if stangda_mal:
-        st.warning(
-            f"OBS! Följande valda resmål har stängt på {backend.VECKODAGAR[vald_veckodag].lower()}ar ({nytt_datum}): "
-            f"**{', '.join(stangda_mal)}**."
-        )
 
     nytt_totalpris, _, _, totalt_nya_resenarer = backend.berakna_respris(
         aktuell_bokning["kund_kommun_id"], nya_valda_mal, nya_vuxna, nya_barn
@@ -208,7 +238,9 @@ def visa_redigera_resa_modal():
         if mellanskillnad > 0:
             st.warning(f"**Att betala extra:** +{mellanskillnad:.2f} kr")
         elif mellanskillnad < 0:
-            st.success(f"**Att få tillbaka (Återbetalning):** {abs(mellanskillnad):.2f} kr")
+            st.success(
+                f"**Att få tillbaka (Återbetalning):** {abs(mellanskillnad):.2f} kr"
+            )
         else:
             st.info("**Prisskillnad:** 0.00 kr (Ingen extra kostnad)")
 
@@ -279,16 +311,26 @@ def visa_kvitto_modal():
         )
     st.divider()
 
-    kvitton = backend.hamta_betalningshistorik(user["customer_id"], is_admin=is_admin)
+    kvitton = backend.hamta_betalningshistorik(
+        user["customer_id"], is_admin=is_admin
+    )
 
     if not kvitton:
-        st.info("Det finns inga tidigare betalningar eller kvitton registrerade ännu.")
+        st.info(
+            "Det finns inga tidigare betalningar eller kvitton registrerade ännu."
+        )
         return
 
     for k in kvitton:
         betal_status = k["payment_status"] if k["payment_status"] else "Paid"
-        betal_metod = k["payment_method"] if k["payment_method"] else "Direktbetalning"
-        belopp = float(k["amount"]) if k["amount"] is not None else float(k["total_price"])
+        betal_metod = (
+            k["payment_method"] if k["payment_method"] else "Direktbetalning"
+        )
+        belopp = (
+            float(k["amount"])
+            if k["amount"] is not None
+            else float(k["total_price"])
+        )
         datum_tid = k["payment_date"] if k["payment_date"] else k["booking_date"]
         datum_str = (
             datum_tid.strftime("%Y-%m-%d %H:%M:%S")
@@ -302,7 +344,9 @@ def visa_kvitto_modal():
         else:
             typ_etikett = f"Betalning: {belopp:.2f} kr"
 
-        kund_info = f" | Kund: {k['first_name']} {k['last_name']}" if is_admin else ""
+        kund_info = (
+            f" | Kund: {k['first_name']} {k['last_name']}" if is_admin else ""
+        )
 
         rubrik = (
             f"Kvitto #{kvitto_nr} | {datum_str} | "
@@ -316,10 +360,16 @@ def visa_kvitto_modal():
                 st.markdown("### Resedetaljer")
                 st.write(f"**Bokningsnummer:** #{k['booking_id']}")
                 if is_admin:
-                    st.write(f"**Kund:** {k['first_name']} {k['last_name']} (ID #{k['customer_id']})")
+                    st.write(
+                        f"**Kund:** {k['first_name']} {k['last_name']} (ID #{k['customer_id']})"
+                    )
                 st.write(f"**Paket:** {k['package_name']}")
-                st.write(f"**Valda besöksmål:** {k['resmal'] or 'Inga specifika mål angivna'}")
-                st.write(f"**Rutt:** {k['start_kommun']} ➔ {k['slut_kommun']}")
+                st.write(
+                    f"**Valda besöksmål:** {k['resmal'] or 'Inga specifika mål angivna'}"
+                )
+                st.write(
+                    f"**Rutt:** {k['start_kommun']} ➔ {k['slut_kommun']}"
+                )
                 st.write(f"**Avresedatum:** {k['travel_date']}")
                 st.write(
                     f"**Resenärer:** {k['number_of_adults']} vuxna, {k['number_of_children']} barn"
@@ -332,7 +382,9 @@ def visa_kvitto_modal():
                 st.write(f"**Betalsätt:** {betal_metod}")
                 st.write(f"**Betalningsstatus:** {betal_status}")
                 st.write(f"**Bokningsstatus:** {k['booking_status']}")
-                st.write(f"**Bokningens nuvarande totalpris:** {k['total_price']:.2f} kr")
+                st.write(
+                    f"**Bokningens nuvarande totalpris:** {k['total_price']:.2f} kr"
+                )
                 if belopp < 0:
                     st.markdown(f"#### Återbetalt belopp: {abs(belopp):.2f} kr")
                 else:
@@ -340,25 +392,7 @@ def visa_kvitto_modal():
 
 
 # ---------
-# Session
-# ---------
-if "user" not in st.session_state:
-    st.session_state.user = None
-
-if "valda_mal" not in st.session_state:
-    st.session_state.valda_mal = []
-
-if "valt_datum" not in st.session_state:
-    st.session_state.valt_datum = date.today()
-
-if "boknings_meddelande" not in st.session_state:
-    st.session_state.boknings_meddelande = None
-
-lediga_platser, totalt_bokade = backend.hamta_lediga_platser(st.session_state.valt_datum)
-
-
-# ---------
-# Bakgrund och CSS
+# Bakgrund och Mobilanpassad CSS
 # ---------
 def get_base64_image(image_path):
     try:
@@ -373,6 +407,7 @@ bg_img = get_base64_image("bakgrund.jpg")
 st.markdown(
     f"""
     <style>
+    /* Bakgrundsbild */
     .stApp {{
         background-image: url("data:image/jpeg;base64,{bg_img}");
         background-size: cover;
@@ -380,37 +415,119 @@ st.markdown(
         background-attachment: fixed;
     }}
 
-    h1 {{
-        color: #FFFFFF !important;
-        text-shadow: 1px 1px 1px #000000D2 !important;
+    /* Responsiv huvudbehållare som centrerar på desktop och fyller skärmen på mobil */
+    .block-container {{
+        max-width: 980px !important;
+        padding-top: 0.5rem !important;
+        padding-left: 0.8rem !important;
+        padding-right: 0.8rem !important;
+        margin: 0 auto !important;
     }}
 
+    /* Dölj Streamlits tomma topplist så den fasta baren hamnar högst upp */
+    header[data-testid="stHeader"] {{
+        background: transparent !important;
+        height: 1.5rem !important;
+    }}
+
+    /* Fast (sticky) toppbar för datumval och inloggning */
+    div[data-testid="stVerticalBlock"] > div:has(div.sticky-topbar-anchor) {{
+        position: sticky !important;
+        top: 0.25rem !important;
+        z-index: 999 !important;
+        background-color: rgba(243, 226, 195, 0.96) !important;
+        backdrop-filter: blur(8px);
+        border: 2px solid #ECCF9D;
+        border-radius: 12px;
+        padding: 0.6rem 0.9rem !important;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
+        margin-bottom: 0.8rem !important;
+    }}
+
+    h1 {{
+        color: #FFFFFF !important;
+        text-shadow: 1px 2px 4px #000000D2 !important;
+        font-size: clamp(1.6rem, 4vw, 2.5rem) !important;
+        margin-bottom: 0.4rem !important;
+    }}
+
+    /* Kort och Expanders */
     div[data-testid="stExpander"] {{
         background-color: #F3E2C3;
-        border-radius: 10px;
+        border-radius: 12px;
+        border: 1px solid #ECCF9D;
     }}
 
     div[data-testid="stExpander"] summary {{
         background-color: #ECCF9D !important;
-        border-radius: 10px;
-    }}
-    
-    div[data-testid="stExpander"] summary p {{
-        color: #FFFFFF !important;
-        text-shadow: 1px 1px 1px #000000D2 !important;
-        font-size: 1.4rem;
+        border-radius: 12px;
     }}
 
-    div[data-testid="stExpanderDetails"] p, 
+    div[data-testid="stExpander"] summary p {{
+        color: #FFFFFF !important;
+        text-shadow: 1px 1px 2px #000000D2 !important;
+        font-size: clamp(1.1rem, 3vw, 1.35rem) !important;
+    }}
+
+    div[data-testid="stExpanderDetails"] p,
     div[data-testid="stExpanderDetails"] span,
     button[data-baseweb="tab"] p {{
-        color: #000000 !important; 
+        color: #000000 !important;
+    }}
+
+    /* Gör flikar svepbara på mobil så att de aldrig överlappar varandra */
+    div[data-baseweb="tab-list"] {{
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        flex-wrap: nowrap !important;
+        gap: 0.35rem !important;
+        padding-bottom: 0.25rem !important;
+        scrollbar-width: thin;
+    }}
+
+    button[data-baseweb="tab"] {{
+        white-space: nowrap !important;
+        background-color: rgba(236, 207, 157, 0.45) !important;
+        border-radius: 8px 8px 0 0 !important;
+        padding: 0.45rem 0.85rem !important;
+    }}
+
+    button[data-baseweb="tab"][aria-selected="true"] {{
+        background-color: #ECCF9D !important;
+        font-weight: 700 !important;
+    }}
+
+    /* Gråmarkerad vy för stängda besöksmål */
+    .closed-banner {{
+        background-color: #D6D6D6;
+        color: #4A4A4A;
+        border-left: 5px solid #7A7A7A;
+        padding: 0.65rem 0.9rem;
+        border-radius: 8px;
+        font-weight: 600;
+        margin: 0.5rem 0;
+    }}
+
+    .closed-content {{
+        opacity: 0.48;
+        filter: grayscale(90%);
+        pointer-events: none;
+        user-select: none;
+    }}
+
+    .open-banner {{
+        background-color: #DFF2E1;
+        color: #1B5E20;
+        border-left: 5px solid #2E7D32;
+        padding: 0.65rem 0.9rem;
+        border-radius: 8px;
+        font-weight: 600;
+        margin: 0.5rem 0;
     }}
 
     div[data-testid="stDialog"] div[role="dialog"] {{
-        width: 92vw !important;
-        max-width: 92vw !important;
-        min-height: 75vh !important;
+        width: 95vw !important;
+        max-width: 900px !important;
     }}
     </style>
     """,
@@ -419,71 +536,128 @@ st.markdown(
 
 
 # ---------
-# Rubrik, inloggning & registrering
+# Fast Toppbar: Välj avresedatum + Bussplatser + Logga in
 # ---------
-top_left, top_center, top_right = st.columns([1, 5, 1])
+with st.container():
+    st.markdown('<div class="sticky-topbar-anchor"></div>', unsafe_allow_html=True)
+    tb_col1, tb_col2, tb_col3 = st.columns([2, 2, 1.5], vertical_alignment="bottom")
 
-with top_center:
-    st.markdown(
-        "<h1 style='text-align: center;'>Skånska Upplevelser</h1>",
-        unsafe_allow_html=True,
+    with tb_col1:
+        nytt_datum = st.date_input(
+            "📅 Välj datum för avresa",
+            value=st.session_state.valt_datum,
+            min_value=date.today(),
+            key="topbar_date_picker",
+        )
+        if nytt_datum != st.session_state.valt_datum:
+            st.session_state.valt_datum = nytt_datum
+            st.session_state.boknings_meddelande = None
+
+            # Rensa automatiskt bort valda resmål som har stängt på det nya datumet
+            ny_veckodag = nytt_datum.isoweekday()
+            kvarvarande_mal = []
+            borttagna_namn = []
+            for m in st.session_state.valda_mal:
+                dag_status = m.get("oppettider", {}).get(ny_veckodag)
+                if dag_status and not dag_status["is_open"]:
+                    borttagna_namn.append(m["namn"])
+                else:
+                    kvarvarande_mal.append(m)
+
+            st.session_state.valda_mal = kvarvarande_mal
+            if borttagna_namn:
+                st.session_state.datum_varning = (
+                    f"{', '.join(borttagna_namn)} togs bort från din bokning eftersom "
+                    f"det är stängt på {backend.VECKODAGAR[ny_veckodag].lower()}ar ({nytt_datum})."
+                )
+            else:
+                st.session_state.datum_varning = None
+            st.rerun()
+
+    lediga_platser, totalt_bokade = backend.hamta_lediga_platser(
+        st.session_state.valt_datum
     )
 
-with top_right:
-    st.write("")
-    if st.session_state.user is None:
-        with st.popover("Logga in", use_container_width=True):
-            st.subheader("Kundinloggning")
-            email_input = st.text_input("E-post", placeholder="dinmail@exempel.se")
-            pass_input = st.text_input("Lösenord", type="password")
+    with tb_col2:
+        veckodag_namn = backend.VECKODAGAR[
+            st.session_state.valt_datum.isoweekday()
+        ]
+        if lediga_platser > 0:
+            st.markdown(
+                f"🚌 **{veckodag_namn}:** {lediga_platser} av {backend.MAX_BUSS_PLATSER} platser kvar"
+            )
+        else:
+            st.markdown("🚌 **Bussen är fullsatt valt datum**")
 
-            if st.button("Logga in", use_container_width=True):
-                user_data = backend.verifiera_inloggning(email_input, pass_input)
-                if user_data:
-                    st.session_state.user = user_data
+    with tb_col3:
+        if st.session_state.user is None:
+            with st.popover("🔑 Logga in", use_container_width=True):
+                st.subheader("Kundinloggning")
+                email_input = st.text_input(
+                    "E-post", placeholder="dinmail@exempel.se"
+                )
+                pass_input = st.text_input("Lösenord", type="password")
+
+                if st.button("Logga in", use_container_width=True):
+                    user_data = backend.verifiera_inloggning(
+                        email_input, pass_input
+                    )
+                    if user_data:
+                        st.session_state.user = user_data
+                        st.session_state.boknings_meddelande = None
+                        st.rerun()
+                    else:
+                        st.error("Fel e-post eller lösenord!")
+
+                st.divider()
+                st.caption("Ny hos oss?")
+                if st.button("Registrera ny kund", use_container_width=True):
+                    visa_registrering_modal()
+        else:
+            ar_admin = st.session_state.user["customer_id"] == 1
+            ikon = "👑" if ar_admin else "👤"
+            with st.popover(
+                f"{ikon} {st.session_state.user['first_name']}",
+                use_container_width=True,
+            ):
+                st.write(
+                    f"**Inloggad som:** {st.session_state.user['first_name']} {st.session_state.user['last_name']}"
+                )
+                if ar_admin:
+                    st.caption("Roll: **Administratör (ID #1)**")
+                st.write(
+                    f"**Hemkommun:** {st.session_state.user['municipality_name']}"
+                )
+                st.divider()
+
+                if st.button("Redigera betald resa", use_container_width=True):
+                    visa_redigera_resa_modal()
+
+                if st.button("Betalningshistorik", use_container_width=True):
+                    visa_kvitto_modal()
+
+                if st.button("Logga ut", use_container_width=True):
+                    st.session_state.user = None
+                    st.session_state.valda_mal = []
                     st.session_state.boknings_meddelande = None
                     st.rerun()
-                else:
-                    st.error("Fel e-post eller lösenord!")
-
-            st.divider()
-            st.caption("Ny hos oss?")
-            if st.button("Registrera ny kund", use_container_width=True):
-                visa_registrering_modal()
-    else:
-        ar_admin = st.session_state.user["customer_id"] == 1
-        ikon = "👑" if ar_admin else "👤"
-        with st.popover(
-            f"{ikon} {st.session_state.user['first_name']}",
-            use_container_width=True,
-        ):
-            st.write(
-                f"**Inloggad som:** {st.session_state.user['first_name']} {st.session_state.user['last_name']}"
-            )
-            if ar_admin:
-                st.caption("Roll: **Administratör (ID #1)**")
-            st.write(
-                f"**Hemkommun:** {st.session_state.user['municipality_name']}"
-            )
-            st.divider()
-
-            if st.button("Redigera betald resa", use_container_width=True):
-                visa_redigera_resa_modal()
-
-            if st.button("Betalningshistorik", use_container_width=True):
-                visa_kvitto_modal()
-
-            if st.button("Logga ut", use_container_width=True):
-                st.session_state.user = None
-                st.session_state.valda_mal = []
-                st.session_state.boknings_meddelande = None
-                st.rerun()
-
-st.write("")
 
 
 # ---------
-# UI-komponenter för aktivitetsflikar
+# Huvudrubrik
+# ---------
+st.markdown(
+    "<h1 style='text-align: center;'>Skånska Upplevelser</h1>",
+    unsafe_allow_html=True,
+)
+
+if st.session_state.datum_varning:
+    st.warning(st.session_state.datum_varning)
+    st.session_state.datum_varning = None
+
+
+# ---------
+# UI-komponent för ett enskilt besöksmål
 # ---------
 def visa_plats(
     plats_namn,
@@ -496,248 +670,278 @@ def visa_plats(
     pris=0.0,
     oppettider=None,
 ):
-    st.write(kort_info)
-
     vald_veckodag = st.session_state.valt_datum.isoweekday()
     dag_status = oppettider.get(vald_veckodag) if oppettider else None
+    ar_oppet = dag_status["is_open"] if dag_status else True
 
-    with st.container(height=480, border=False):
-        st.subheader(plats_namn)
-        if pris > 0:
-            st.write(f"**Biljettpris:** {pris:.0f} kr / person")
+    st.subheader(plats_namn)
+    st.write(kort_info)
+
+    if pris > 0:
+        st.write(f"**Biljettpris:** {pris:.0f} kr / person")
+    else:
+        st.write("**Pris:** Kostnadsfritt besöksmål (eller egen fika)")
+
+    # Tydlig statusindikator (Grön om öppet, Grå om stängt)
+    if dag_status:
+        if ar_oppet:
+            st.markdown(
+                f'<div class="open-banner">🕒 Öppet {dag_status["dag_namn"].lower()} '
+                f'({st.session_state.valt_datum}): {dag_status["text"]}</div>',
+                unsafe_allow_html=True,
+            )
         else:
-            st.write("**Pris:** Kostnadsfritt besöksmål (eller egen fika)")
-
-        if dag_status:
-            if dag_status["is_open"]:
-                st.success(
-                    f"🕒 **Öppet valt datum ({dag_status['dag_namn']} {st.session_state.valt_datum}):** {dag_status['text']}"
-                )
-            else:
-                st.warning(
-                    f"🕒 **Stängt på valt datum ({dag_status['dag_namn']} {st.session_state.valt_datum})**"
-                )
-
-        if st.session_state.user is not None:
-            unik_nyckel = f"{kategori}_{item_id}"
-            redan_vald = any(
-                m["nyckel"] == unik_nyckel for m in st.session_state.valda_mal
+            st.markdown(
+                f'<div class="closed-banner">🔒 Stängt på {dag_status["dag_namn"].lower()}ar '
+                f'({st.session_state.valt_datum}) — Byt avresedatum i toppbaren för att boka detta resmål.</div>',
+                unsafe_allow_html=True,
             )
 
-            if lediga_platser <= 0:
-                st.error(
-                    f"**Fullsatt** ({st.session_state.valt_datum}) — Alla {backend.MAX_BUSS_PLATSER} platser på bussen är bokade."
-                )
-            else:
-                vald = st.checkbox(
-                    f"Lägg till {plats_namn} i min bokning",
-                    value=redan_vald,
-                    key=f"chk_{unik_nyckel}",
-                )
+    # Bokningskryssruta (Gråmarkerad/låst om stängt på valt datum)
+    if st.session_state.user is not None:
+        unik_nyckel = f"{kategori}_{item_id}"
+        redan_vald = any(
+            m["nyckel"] == unik_nyckel for m in st.session_state.valda_mal
+        )
 
-                if vald and not redan_vald:
-                    st.session_state.valda_mal.append(
-                        {
-                            "nyckel": unik_nyckel,
-                            "kategori": kategori,
-                            "id": item_id,
-                            "namn": plats_namn,
-                            "municipality_id": municipality_id,
-                            "pris": pris,
-                            "oppettider": oppettider or {},
-                        }
-                    )
-                    st.rerun()
-                elif not vald and redan_vald:
-                    st.session_state.valda_mal = [
-                        m
-                        for m in st.session_state.valda_mal
-                        if m["nyckel"] != unik_nyckel
-                    ]
-                    st.rerun()
+        if lediga_platser <= 0:
+            st.error(
+                f"**Fullsatt** ({st.session_state.valt_datum}) — Alla {backend.MAX_BUSS_PLATSER} platser på bussen är bokade."
+            )
         else:
-            st.info("Logga in för att kunna boka.")
+            etikett = (
+                f"Lägg till {plats_namn} i min bokning"
+                if ar_oppet
+                else f"{plats_namn} är stängt valt datum (kan ej väljas)"
+            )
+            vald = st.checkbox(
+                etikett,
+                value=redan_vald and ar_oppet,
+                disabled=not ar_oppet,
+                key=f"chk_{unik_nyckel}_{st.session_state.valt_datum}",
+            )
 
-        info_col, tider_col = st.columns([2, 1])
-        with info_col:
+            if vald and not redan_vald and ar_oppet:
+                st.session_state.valda_mal.append(
+                    {
+                        "nyckel": unik_nyckel,
+                        "kategori": kategori,
+                        "id": item_id,
+                        "namn": plats_namn,
+                        "municipality_id": municipality_id,
+                        "pris": pris,
+                        "oppettider": oppettider or {},
+                    }
+                )
+                st.rerun()
+            elif not vald and redan_vald:
+                st.session_state.valda_mal = [
+                    m
+                    for m in st.session_state.valda_mal
+                    if m["nyckel"] != unik_nyckel
+                ]
+                st.rerun()
+    else:
+        st.info("Logga in längst upp till höger för att kunna boka.")
+
+    # Beskrivning, bild och öppettider (gråmarkeras visuellt om stängt)
+    info_col, tider_col = st.columns([1.8, 1])
+
+    with info_col:
+        if not ar_oppet:
+            st.markdown(
+                f"""
+                <div class="closed-content">
+                    <img src="{bild_url}" style="width:100%; border-radius:8px; margin-bottom:0.6rem;" />
+                    <h4>Om besöksmålet</h4>
+                    <p>{lang_text}</p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        else:
             st.image(bild_url, use_container_width=True)
             st.markdown("#### Om besöksmålet")
             st.write(lang_text)
 
-        with tider_col:
-            st.markdown("#### Öppettider (Mån–Sön)")
-            if oppettider:
-                for veckodag_nr in range(1, 8):
-                    rad = oppettider.get(veckodag_nr)
-                    if rad:
-                        markering = "👉 " if veckodag_nr == vald_veckodag else ""
-                        st.write(
-                            f"{markering}**{rad['dag_namn']}:** {rad['text']}"
+    with tider_col:
+        st.markdown("#### Öppettider (Mån–Sön)")
+        if oppettider:
+            for veckodag_nr in range(1, 8):
+                rad = oppettider.get(veckodag_nr)
+                if rad:
+                    ar_vald_dag = veckodag_nr == vald_veckodag
+                    markering = "👉 " if ar_vald_dag else ""
+                    if not rad["is_open"]:
+                        st.markdown(
+                            f"<span style='color:#7A7A7A;'>{markering}<b>{rad['dag_namn']}:</b> 🔒 Stängt</span>",
+                            unsafe_allow_html=True,
                         )
-            else:
-                st.write("Inga öppettider registrerade.")
-
-
-def rendera_kategori_expander(titel, kategori_kod, sok_ord):
-    """Renderar en expander med flikar baserat på filtrerad data från databasen via backend."""
-    items = backend.filtrera_aktiviteter(kategori_kod, sok_ord)
-    auto_expand = bool(sok_ord.strip() and len(items) > 0)
-
-    with st.expander(titel, expanded=auto_expand):
-        if not items:
-            st.info(f"Inga aktiviteter under '{titel}' matchade din sökning.")
+                    else:
+                        st.write(f"{markering}**{rad['dag_namn']}:** {rad['text']}")
         else:
-            flikar = st.tabs([item["plats_namn"] for item in items])
-            for flik, item in zip(flikar, items):
-                with flik:
-                    visa_plats(
-                        plats_namn=item["plats_namn"],
-                        kort_info=item["kort_info"],
-                        bild_url=item["bild_url"],
-                        lang_text=item["lang_text"],
-                        kategori=item["kategori"],
-                        item_id=item["id"],
-                        municipality_id=item["municipality_id"],
-                        pris=item["pris"],
-                        oppettider=item.get("oppettider", {}),
-                    )
+            st.write("Inga öppettider registrerade.")
 
 
 # ---------
-# Sökfält, Flikar, Bokning & Adminpanel
+# Sökfält & EN sammanhållen expander med Aktivitetsflikar -> Besöksmålsflikar
 # ---------
-col1, col2, col3 = st.columns([1, 5, 1])
+sok_fras = st.text_input(
+    "Sök",
+    placeholder="🔍 Sök bland nöjen, platser och fika...",
+    label_visibility="collapsed",
+)
 
-with col2:
-    sok_fras = st.text_input("Sök", placeholder="Sök bland nöjen, platser och fika...", label_visibility="collapsed")
+vald_veckodag_nu = st.session_state.valt_datum.isoweekday()
+veckodag_rubrik = backend.VECKODAGAR[vald_veckodag_nu]
 
-    rendera_kategori_expander("Nöjen", "amusement", sok_fras)
-    rendera_kategori_expander("Platser", "place", sok_fras)
-    rendera_kategori_expander("Fika", "fika", sok_fras)
+with st.expander(
+    f"Utforska våra resmål — Visar öppettider för {veckodag_rubrik.lower()} ({st.session_state.valt_datum})",
+    expanded=True,
+):
+    kategorier = [
+        ("🎡 Nöjen", "amusement"),
+        ("🌲 Platser", "place"),
+        ("☕ Fika", "fika"),
+    ]
+    huvud_flikar = st.tabs([titel for titel, _ in kategorier])
 
-    if st.session_state.user is not None:
-        with st.expander("Min Bokning", expanded=True):
-            st.subheader(
-                f"Boka resa för {st.session_state.user['first_name']} från {st.session_state.user['municipality_name']}"
+    for huvud_flik, (titel, kat_kod) in zip(huvud_flikar, kategorier):
+        with huvud_flik:
+            items = backend.filtrera_aktiviteter(kat_kod, sok_fras)
+            if not items:
+                st.info(
+                    f"Inga besöksmål under '{titel}' matchade din sökning."
+                )
+            else:
+                # Skapa underflikar för varje besöksmål (och markera med lås om stängt valt datum)
+                under_etiketter = []
+                for item in items:
+                    dag_info = item.get("oppettider", {}).get(vald_veckodag_nu)
+                    ar_oppet_idag = dag_info["is_open"] if dag_info else True
+                    if ar_oppet_idag:
+                        under_etiketter.append(item["plats_namn"])
+                    else:
+                        under_etiketter.append(f"🔒 {item['plats_namn']} (Stängt)")
+
+                besoksmals_flikar = st.tabs(under_etiketter)
+                for b_flik, item in zip(besoksmals_flikar, items):
+                    with b_flik:
+                        visa_plats(
+                            plats_namn=item["plats_namn"],
+                            kort_info=item["kort_info"],
+                            bild_url=item["bild_url"],
+                            lang_text=item["lang_text"],
+                            kategori=item["kategori"],
+                            item_id=item["id"],
+                            municipality_id=item["municipality_id"],
+                            pris=item["pris"],
+                            oppettider=item.get("oppettider", {}),
+                        )
+
+
+# ---------
+# Min Bokning & Adminpanel
+# ---------
+if st.session_state.user is not None:
+    with st.expander("Min Bokning", expanded=True):
+        st.subheader(
+            f"Boka resa för {st.session_state.user['first_name']} från {st.session_state.user['municipality_name']}"
+        )
+
+        if st.session_state.boknings_meddelande:
+            st.success(st.session_state.boknings_meddelande)
+
+        st.write(
+            f"**Valt avresedatum:** {st.session_state.valt_datum} ({veckodag_rubrik}) — "
+            f"*du kan när som helst ändra datum i den fasta baren högst upp.*"
+        )
+
+        if lediga_platser <= 0:
+            st.warning(
+                "Bussen är fullbokad på detta datum. Byt datum i toppbaren ovan för att kunna kryssa i resmål."
+            )
+        elif len(st.session_state.valda_mal) == 0:
+            st.write(
+                "Du har inte valt några resmål än. Välj en kategori och kryssa i ett eller flera öppna besöksmål ovan!"
+            )
+        else:
+            st.write("**Valda resmål i ditt paket:**")
+            for mal in st.session_state.valda_mal:
+                dag_info = mal.get("oppettider", {}).get(vald_veckodag_nu)
+                tid_etikett = (
+                    f" — Öppet: {dag_info['text']}" if dag_info else ""
+                )
+                st.write(
+                    f"- **{mal['namn']}** ({mal['pris']:.0f} kr){tid_etikett}"
+                )
+
+            bcol1, bcol2, bcol3 = st.columns(3)
+            with bcol1:
+                adults = st.number_input("Antal vuxna", min_value=1, value=1)
+            with bcol2:
+                children = st.number_input("Antal barn", min_value=0, value=0)
+            with bcol3:
+                payment_method = st.selectbox(
+                    "Välj betalsätt", ["Swish", "Kort", "Klarna"]
+                )
+
+            total_price, buss_avgift, antal_kommuner, antal_resenarer = (
+                backend.berakna_respris(
+                    st.session_state.user["municipality_id"],
+                    st.session_state.valda_mal,
+                    adults,
+                    children,
+                )
             )
 
-            if st.session_state.boknings_meddelande:
-                st.success(st.session_state.boknings_meddelande)
+            st.write(
+                f"**Bussavgift ({antal_kommuner} kommuner x 45 kr):** {buss_avgift:.2f} kr"
+            )
+            st.subheader(f"Totalpris: {total_price:.2f} kr")
 
-            dcol1, dcol2 = st.columns([1, 2])
-            with dcol1:
-                nytt_datum = st.date_input(
-                    "Välj avresedatum",
-                    value=st.session_state.valt_datum,
-                    min_value=date.today(),
-                )
-                if nytt_datum != st.session_state.valt_datum:
-                    st.session_state.valt_datum = nytt_datum
-                    st.session_state.boknings_meddelande = None
-                    st.rerun()
+            for_manga_resenarer = antal_resenarer > lediga_platser
 
-            with dcol2:
-                st.write("")
-                if lediga_platser > 0:
-                    st.info(
-                        f"**Superduperbussen ({st.session_state.valt_datum}):** "
-                        f"{totalt_bokade}/{backend.MAX_BUSS_PLATSER} platser bokade — **{lediga_platser} platser kvar**."
-                    )
-                else:
-                    st.error(
-                        f"**Superduperbussen ({st.session_state.valt_datum}):** "
-                        f"Fullsatt ({backend.MAX_BUSS_PLATSER}/{backend.MAX_BUSS_PLATSER} platser bokade). Välj ett annat datum!"
-                    )
-
-            if lediga_platser <= 0:
+            if for_manga_resenarer:
                 st.warning(
-                    "Bussen är fullbokad på detta datum. Byt datum ovan för att kunna kryssa i resmål."
-                )
-            elif len(st.session_state.valda_mal) == 0:
-                st.write(
-                    "Du har inte valt några resmål än. Öppna flikarna ovan och kryssa i ett eller flera mål!"
-                )
-            else:
-                vald_veckodag = st.session_state.valt_datum.isoweekday()
-                st.write("**Valda resmål i ditt paket:**")
-                stangda_valda = []
-                for mal in st.session_state.valda_mal:
-                    dag_info = mal.get("oppettider", {}).get(vald_veckodag)
-                    tid_etikett = f" — Öppettid: {dag_info['text']}" if dag_info else ""
-                    st.write(f"- {mal['namn']} ({mal['pris']:.0f} kr){tid_etikett}")
-                    if dag_info and not dag_info["is_open"]:
-                        stangda_valda.append(mal["namn"])
-
-                if stangda_valda:
-                    st.warning(
-                        f"Observera att **{', '.join(stangda_valda)}** har stängt på "
-                        f"{backend.VECKODAGAR[vald_veckodag].lower()}ar ({st.session_state.valt_datum})."
-                    )
-
-                bcol1, bcol2, bcol3 = st.columns(3)
-                with bcol1:
-                    adults = st.number_input("Antal vuxna", min_value=1, value=1)
-                with bcol2:
-                    children = st.number_input("Antal barn", min_value=0, value=0)
-                with bcol3:
-                    payment_method = st.selectbox(
-                        "Välj betalsätt", ["Swish", "Kort", "Klarna"]
-                    )
-
-                total_price, buss_avgift, antal_kommuner, antal_resenarer = (
-                    backend.berakna_respris(
-                        st.session_state.user["municipality_id"],
-                        st.session_state.valda_mal,
-                        adults,
-                        children,
-                    )
+                    f"Det går inte att boka {antal_resenarer} resenärer ({adults} vuxna, {children} barn)! "
+                    f"Det finns bara **{lediga_platser} platser kvar** på bussen den {st.session_state.valt_datum}."
                 )
 
-                st.write(
-                    f"**Bussavgift ({antal_kommuner} kommuner x 45 kr):** {buss_avgift:.2f} kr"
+            if st.button(
+                "Slutför bokning & betala",
+                disabled=for_manga_resenarer,
+                use_container_width=True,
+            ):
+                booking_id, fel = backend.spara_bokning_i_db(
+                    user=st.session_state.user,
+                    valda_mal=st.session_state.valda_mal,
+                    travel_date=st.session_state.valt_datum,
+                    adults=adults,
+                    children=children,
+                    total_price=total_price,
+                    payment_method=payment_method,
                 )
-                st.subheader(f"Totalpris: {total_price:.2f} kr")
-
-                for_manga_resenarer = antal_resenarer > lediga_platser
-
-                if for_manga_resenarer:
-                    st.warning(
-                        f"Det går inte att boka {antal_resenarer} resenärer ({adults} vuxna, {children} barn)! "
-                        f"Det finns bara **{lediga_platser} platser kvar** på bussen den {st.session_state.valt_datum}."
+                if booking_id:
+                    st.session_state.boknings_meddelande = (
+                        f"Betalning genomförd med {payment_method}! Ditt bokningsnummer är #{booking_id}. "
+                        f"Du hittar ditt kvitto under 'Betalningshistorik'."
                     )
+                    st.session_state.valda_mal = []
+                    st.rerun()
+                else:
+                    st.error(f"Kunde inte spara bokningen: {fel}")
 
-                if st.button(
-                    "Slutför bokning & betala", disabled=for_manga_resenarer
-                ):
-                    booking_id, fel = backend.spara_bokning_i_db(
-                        user=st.session_state.user,
-                        valda_mal=st.session_state.valda_mal,
-                        travel_date=st.session_state.valt_datum,
-                        adults=adults,
-                        children=children,
-                        total_price=total_price,
-                        payment_method=payment_method,
-                    )
-                    if booking_id:
-                        st.session_state.boknings_meddelande = (
-                            f"Betalning genomförd med {payment_method}! Ditt bokningsnummer är #{booking_id}. "
-                            f"Du hittar ditt kvitto under 'Betalningshistorik'."
-                        )
-                        st.session_state.valda_mal = []
-                        st.rerun()
-                    else:
-                        st.error(f"Kunde inte spara bokningen: {fel}")
-
-        # ---------
-        # Adminpanel visas endast när customer_id 1 är inloggad
-        # ---------
-        if st.session_state.user["customer_id"] == 1:
-            with st.expander("Adminpanel — Systemöversikt", expanded=False):
-                st.subheader("Administratörsvy (Kund-ID #1)")
-                st.write(
-                    "Som admin kan du även redigera alla kunders kommande bokningar under **Redigera betald resa** "
-                    "och se alla transaktioner under **Betalningshistorik** uppe till höger."
-                )
-                alla_kunder = backend.hamta_alla_kunder()
-                st.markdown("#### Registrerade användare")
-                st.dataframe(alla_kunder, use_container_width=True)
+    # ---------
+    # Adminpanel visas endast när customer_id 1 är inloggad
+    # ---------
+    if st.session_state.user["customer_id"] == 1:
+        with st.expander("Adminpanel — Systemöversikt", expanded=False):
+            st.subheader("Administratörsvy (Kund-ID #1)")
+            st.write(
+                "Som admin kan du även redigera alla kunders kommande bokningar under **Redigera betald resa** "
+                "och se alla transaktioner under **Betalningshistorik** i menyn längst upp till höger."
+            )
+            alla_kunder = backend.hamta_alla_kunder()
+            st.markdown("#### Registrerade användare")
+            st.dataframe(alla_kunder, use_container_width=True)
