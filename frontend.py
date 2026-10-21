@@ -585,10 +585,7 @@ def rendera_kategori_expander(titel, kategori_kod, sok_ord):
 col1, col2, col3 = st.columns([1, 5, 1])
 
 with col2:
-    sok_fras = st.text_input(
-        "",
-        placeholder="Sök...",
-    )
+    sok_fras = st.text_input("Sök", placeholder="Sök...", label_visibility="collapsed")
 
     rendera_kategori_expander("Nöjen", "amusement", sok_fras)
     rendera_kategori_expander("Platser", "place", sok_fras)
