@@ -621,7 +621,7 @@ st.markdown(
     }}
     .badge-closed {{
         background-color: #FAA0A0;  
-        color: #C4B2A9 !important;
+        color: #000000;
         border: 1px solid #000000;
     }}
 
@@ -659,7 +659,7 @@ st.markdown(
     /* Knappar utan skuggor */
     button[kind="primary"] {{
         background-color: #0F172A !important;
-        color: #FFFFFF !important;
+        color: #FFFFFFF !important;
         border: 1px solid #0F172A !important;
         border-radius: 10px !important;
         font-weight: 600 !important;
