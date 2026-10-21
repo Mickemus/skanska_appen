@@ -1,6 +1,6 @@
 import mysql.connector
 import streamlit as st
-
+from sshtunnel import SSHTunnelForwarder
 # Konstanter för Superduperbussen
 MAX_BUSS_PLATSER = 50
 DEFAULT_BOKADE_PLATSER = 45
@@ -106,15 +106,37 @@ ALLA_AKTIVITETER = [
 # ----------------------------------------
 # Databaskoppling
 # ----------------------------------------
+
+
+@st.cache_resource
+def get_ssh_tunnel():
+    tunnel = SSHTunnelForwarder(
+        (st.secrets["SSH_HOST"].strip(), 22),
+        ssh_username=st.secrets["SSH_USER"].strip(),
+        ssh_password=st.secrets["SSH_PASSWORD"],
+        remote_bind_address=(
+            st.secrets["DB_HOST"].replace(":3306", "").strip(),
+            3306,
+        ),
+    )
+    tunnel.start()
+    return tunnel
+
+
 def get_db_connection():
     try:
+        tunnel = get_ssh_tunnel()
+        if not tunnel.is_active:
+            tunnel.restart()
+
         return mysql.connector.connect(
-            host=st.secrets["DB_HOST"].replace(":3306", "").strip(),
-            port=3306,
+            host="127.0.0.1",
+            port=tunnel.local_bind_port,
             user=st.secrets["DB_USER"].strip(),
             password=st.secrets["DB_PASSWORD"],
             database=st.secrets["DB_NAME"].strip(),
-            connection_timeout=5,
+            connection_timeout=10,
+            use_pure=True,
         )
     except Exception as err:
         st.error(f"🚨 Kunde inte ansluta till databasen: {err}")
