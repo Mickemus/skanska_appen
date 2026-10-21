@@ -108,11 +108,34 @@ ALLA_AKTIVITETER = [
 # ----------------------------------------
 def get_db_connection():
     return mysql.connector.connect(
-        host=st.secrets["DB_HOST"],
+        host=st.secrets["DB_HOST"].replace(":3306", ""),  # Säkerställer att porten inte ligger i host-strängen
+        port=3306,
         user=st.secrets["DB_USER"],
         password=st.secrets["DB_PASSWORD"],
         database=st.secrets["DB_NAME"],
+         connection_timeout=10,
     )
+
+def verifiera_inloggning(email, password):
+    """Kollar om e-post och lösenord stämmer i tabellen customers."""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        query = """
+            SELECT c.*, m.municipality_name 
+            FROM customers c
+            LEFT JOIN municipalities m ON c.municipality_id = m.municipality_id
+            WHERE c.email = %s AND c.password = %s
+        """
+        cursor.execute(query, (email.strip(), password))
+        user = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        return user
+    except mysql.connector.Error as err:
+        st.error(f"Databasfel vid inloggning: {err}")
+        print(f"DB ERROR: {err}")
+        return None
 
 
 # ----------------------------------------
