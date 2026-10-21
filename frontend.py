@@ -424,24 +424,20 @@ st.markdown(
         margin: 0 auto !important;
     }}
 
-    /* Dölj Streamlits tomma topplist så den fasta baren hamnar högst upp */
-    header[data-testid="stHeader"] {{
-        background: transparent !important;
-        height: 1.5rem !important;
-    }}
+
 
     /* Fast (sticky) toppbar för datumval och inloggning */
     div[data-testid="stVerticalBlock"] > div:has(div.sticky-topbar-anchor) {{
         position: sticky !important;
-        top: 0.25rem !important;
+        top: 0.10rem !important;
         z-index: 999 !important;
-        background-color: rgba(243, 226, 195, 0.96) !important;
-        backdrop-filter: blur(8px);
-        border: 2px solid #ECCF9D;
-        border-radius: 12px;
-        padding: 0.6rem 0.9rem !important;
+        background-color: rgba(255, 255, 255, 0.1) !important;
+        backdrop-filter: blur(2px);
+       
+        border-radius: 4px;
+        padding: 0.4rem 0.9rem !important;
         box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
-        margin-bottom: 0.8rem !important;
+       
     }}
 
     h1 {{
@@ -544,7 +540,7 @@ with st.container():
 
     with tb_col1:
         nytt_datum = st.date_input(
-            "📅 Välj datum för avresa",
+            "Välj datum för avresa",
             value=st.session_state.valt_datum,
             min_value=date.today(),
             key="topbar_date_picker",
@@ -584,14 +580,14 @@ with st.container():
         ]
         if lediga_platser > 0:
             st.markdown(
-                f"🚌 **{veckodag_namn}:** {lediga_platser} av {backend.MAX_BUSS_PLATSER} platser kvar"
+                f"**{veckodag_namn}:** {lediga_platser} av {backend.MAX_BUSS_PLATSER} platser kvar"
             )
         else:
-            st.markdown("🚌 **Bussen är fullsatt valt datum**")
+            st.markdown("**Bussen är fullsatt valt datum**")
 
     with tb_col3:
         if st.session_state.user is None:
-            with st.popover("🔑 Logga in", use_container_width=True):
+            with st.popover("Logga in", use_container_width=True):
                 st.subheader("Kundinloggning")
                 email_input = st.text_input(
                     "E-post", placeholder="dinmail@exempel.se"
@@ -788,7 +784,7 @@ def visa_plats(
 # ---------
 sok_fras = st.text_input(
     "Sök",
-    placeholder="🔍 Sök bland nöjen, platser och fika...",
+    placeholder="Sök bland nöjen, platser och fika...",
     label_visibility="collapsed",
 )
 
@@ -800,9 +796,9 @@ with st.expander(
     expanded=True,
 ):
     kategorier = [
-        ("🎡 Nöjen", "amusement"),
-        ("🌲 Platser", "place"),
-        ("☕ Fika", "fika"),
+        ("Nöjen", "amusement"),
+        ("Platser", "place"),
+        ("Fika", "fika"),
     ]
     huvud_flikar = st.tabs([titel for titel, _ in kategorier])
 
