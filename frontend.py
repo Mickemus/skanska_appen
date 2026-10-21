@@ -9,7 +9,6 @@ st.set_page_config(page_title="Skånska Upplevelser", layout="wide")
 # ---------
 # Registrera ny användare
 # ---------
-
 @st.dialog("Registrera ny användare")
 def visa_registrering_modal():
     st.write("Fyll i dina uppgifter nedan för att skapa ett konto hos Skånska Upplevelser.")
@@ -32,7 +31,6 @@ def visa_registrering_modal():
             "E-postadress *", max_chars=150, placeholder="namn@exempel.com"
         )
 
-    
         col_p1, col_p2 = st.columns(2)
         with col_p1:
             password = st.text_input(
@@ -59,39 +57,23 @@ def visa_registrering_modal():
             ln = last_name.strip()
             em = email.strip()
 
-            # 1. Kontrollera att obligatoriska fält är ifyllda
             if not fn or not ln or not em or not password or not password_confirm:
                 st.error("Vänligen fyll i alla obligatoriska fält (*).")
-
-            # 2. Kontrollera dubbla mellanslag
             elif "  " in fn or "  " in ln or "  " in em:
                 st.error("Fälten får inte innehålla dubbla mellanslag.")
-
-            # 3. Kontrollera namnformat: Stor första bokstav, resten små
             elif fn != fn.capitalize() or ln != ln.capitalize():
-                st.error(
-                    f""
-                )
-
-            # 4. Kontrollera e-post (@ och domän som .com/.se)
+                st.error("Förnamn och efternamn måste börja med stor bokstav följt av små bokstäver.")
             elif (
                 "@" not in em
                 or "." not in em.split("@")[-1]
                 or len(em.split("@")[-1].split(".")[-1]) < 2
                 or " " in em
             ):
-                st.error(
-                    "Ange en giltig e-postadress."
-                )
-
-            # 5. Kontrollera lösenordslängd (> 6 tecken, alltså minst 7)
+                st.error("Ange en giltig e-postadress.")
             elif len(password) <= 6:
                 st.error("Lösenordet måste vara längre än 6 tecken.")
-
-            # 6. Kontrollera att båda lösenordsfälten matchar
             elif password != password_confirm:
                 st.error("Lösenorden matchar inte!")
-
             else:
                 kommun_id = kommun_dict.get(vald_kommun_namn, 17)
                 lyckades, meddelande = backend.registrera_kund_i_db(
@@ -107,9 +89,8 @@ def visa_registrering_modal():
 
 
 # ---------
-# redigera betald resa
+# Redigera betald resa
 # ---------
-
 @st.dialog("Redigera betald resa", width="large")
 def visa_redigera_resa_modal():
     user = st.session_state.user
@@ -162,6 +143,9 @@ def visa_redigera_resa_modal():
     st.markdown("#### Välj destinationer för resan")
     st.caption("Kryssa i eller ur destinationer. Priset räknas om automatiskt nedan.")
 
+    alla_aktiviteter = backend.hamta_alla_aktiviteter()
+    vald_veckodag = nytt_datum.isoweekday()
+
     kat_col1, kat_col2, kat_col3 = st.columns(3)
     nya_valda_mal = []
 
@@ -172,13 +156,15 @@ def visa_redigera_resa_modal():
     ]:
         with kat_col:
             st.markdown(f"**{kat_rubrik}**")
-            for akt in backend.ALLA_AKTIVITETER:
+            for akt in alla_aktiviteter:
                 if akt["kategori"] == kat_kod:
                     nyckel = f"{akt['kategori']}_{akt['id']}"
                     forifyll = nyckel in aktuell_bokning["valda_nycklar"]
                     pris_txt = f"{akt['pris']:.0f} kr" if akt["pris"] > 0 else "0 kr"
+                    dag_info = akt.get("oppettider", {}).get(vald_veckodag)
+                    oppet_txt = f" — {dag_info['text']}" if dag_info else ""
                     if st.checkbox(
-                        f"{akt['plats_namn']} ({pris_txt})",
+                        f"{akt['plats_namn']} ({pris_txt}){oppet_txt}",
                         value=forifyll,
                         key=f"edit_chk_{b_id}_{nyckel}",
                     ):
@@ -189,6 +175,17 @@ def visa_redigera_resa_modal():
     if len(nya_valda_mal) == 0:
         st.warning("Du måste ha minst en destination vald i resan.")
         return
+
+    stangda_mal = [
+        m["plats_namn"]
+        for m in nya_valda_mal
+        if not m.get("oppettider", {}).get(vald_veckodag, {}).get("is_open", True)
+    ]
+    if stangda_mal:
+        st.warning(
+            f"OBS! Följande valda resmål har stängt på {backend.VECKODAGAR[vald_veckodag].lower()}ar ({nytt_datum}): "
+            f"**{', '.join(stangda_mal)}**."
+        )
 
     nytt_totalpris, _, _, totalt_nya_resenarer = backend.berakna_respris(
         aktuell_bokning["kund_kommun_id"], nya_valda_mal, nya_vuxna, nya_barn
@@ -266,7 +263,6 @@ def visa_redigera_resa_modal():
 # ---------
 # Betalningshistorik och kvitton
 # ---------
-
 @st.dialog("Betalningshistorik & Kvitton", width="large")
 def visa_kvitto_modal():
     user = st.session_state.user
@@ -346,7 +342,6 @@ def visa_kvitto_modal():
 # ---------
 # Session
 # ---------
-
 if "user" not in st.session_state:
     st.session_state.user = None
 
@@ -363,7 +358,7 @@ lediga_platser, totalt_bokade = backend.hamta_lediga_platser(st.session_state.va
 
 
 # ---------
-# bg och css
+# Bakgrund och CSS
 # ---------
 def get_base64_image(image_path):
     try:
@@ -424,7 +419,7 @@ st.markdown(
 
 
 # ---------
-# rubrik, inloggning o registrering
+# Rubrik, inloggning & registrering
 # ---------
 top_left, top_center, top_right = st.columns([1, 5, 1])
 
@@ -499,15 +494,29 @@ def visa_plats(
     item_id,
     municipality_id,
     pris=0.0,
+    oppettider=None,
 ):
     st.write(kort_info)
 
-    with st.container(height=380, border=False):
+    vald_veckodag = st.session_state.valt_datum.isoweekday()
+    dag_status = oppettider.get(vald_veckodag) if oppettider else None
+
+    with st.container(height=480, border=False):
         st.subheader(plats_namn)
         if pris > 0:
             st.write(f"**Biljettpris:** {pris:.0f} kr / person")
         else:
             st.write("**Pris:** Kostnadsfritt besöksmål (eller egen fika)")
+
+        if dag_status:
+            if dag_status["is_open"]:
+                st.success(
+                    f"🕒 **Öppet valt datum ({dag_status['dag_namn']} {st.session_state.valt_datum}):** {dag_status['text']}"
+                )
+            else:
+                st.warning(
+                    f"🕒 **Stängt på valt datum ({dag_status['dag_namn']} {st.session_state.valt_datum})**"
+                )
 
         if st.session_state.user is not None:
             unik_nyckel = f"{kategori}_{item_id}"
@@ -535,6 +544,7 @@ def visa_plats(
                             "namn": plats_namn,
                             "municipality_id": municipality_id,
                             "pris": pris,
+                            "oppettider": oppettider or {},
                         }
                     )
                     st.rerun()
@@ -548,15 +558,28 @@ def visa_plats(
         else:
             st.info("Logga in för att kunna boka.")
 
-        st.image(bild_url, use_container_width=True)
-        st.write(lang_text)
-        st.write(
-            "Här kan du fylla på med grejsimojs Emil. Kartor också? Kanske adress"
-        )
+        info_col, tider_col = st.columns([2, 1])
+        with info_col:
+            st.image(bild_url, use_container_width=True)
+            st.markdown("#### Om besöksmålet")
+            st.write(lang_text)
+
+        with tider_col:
+            st.markdown("#### Öppettider (Mån–Sön)")
+            if oppettider:
+                for veckodag_nr in range(1, 8):
+                    rad = oppettider.get(veckodag_nr)
+                    if rad:
+                        markering = "👉 " if veckodag_nr == vald_veckodag else ""
+                        st.write(
+                            f"{markering}**{rad['dag_namn']}:** {rad['text']}"
+                        )
+            else:
+                st.write("Inga öppettider registrerade.")
 
 
 def rendera_kategori_expander(titel, kategori_kod, sok_ord):
-    """Renderar en expander med flikar baserat på filtrerad data från backend."""
+    """Renderar en expander med flikar baserat på filtrerad data från databasen via backend."""
     items = backend.filtrera_aktiviteter(kategori_kod, sok_ord)
     auto_expand = bool(sok_ord.strip() and len(items) > 0)
 
@@ -576,6 +599,7 @@ def rendera_kategori_expander(titel, kategori_kod, sok_ord):
                         item_id=item["id"],
                         municipality_id=item["municipality_id"],
                         pris=item["pris"],
+                        oppettider=item.get("oppettider", {}),
                     )
 
 
@@ -585,7 +609,7 @@ def rendera_kategori_expander(titel, kategori_kod, sok_ord):
 col1, col2, col3 = st.columns([1, 5, 1])
 
 with col2:
-    sok_fras = st.text_input("Sök", placeholder="Sök...", label_visibility="collapsed")
+    sok_fras = st.text_input("Sök", placeholder="Sök bland nöjen, platser och fika...", label_visibility="collapsed")
 
     rendera_kategori_expander("Nöjen", "amusement", sok_fras)
     rendera_kategori_expander("Platser", "place", sok_fras)
@@ -634,9 +658,21 @@ with col2:
                     "Du har inte valt några resmål än. Öppna flikarna ovan och kryssa i ett eller flera mål!"
                 )
             else:
+                vald_veckodag = st.session_state.valt_datum.isoweekday()
                 st.write("**Valda resmål i ditt paket:**")
+                stangda_valda = []
                 for mal in st.session_state.valda_mal:
-                    st.write(f"- {mal['namn']} ({mal['pris']:.0f} kr)")
+                    dag_info = mal.get("oppettider", {}).get(vald_veckodag)
+                    tid_etikett = f" — Öppettid: {dag_info['text']}" if dag_info else ""
+                    st.write(f"- {mal['namn']} ({mal['pris']:.0f} kr){tid_etikett}")
+                    if dag_info and not dag_info["is_open"]:
+                        stangda_valda.append(mal["namn"])
+
+                if stangda_valda:
+                    st.warning(
+                        f"Observera att **{', '.join(stangda_valda)}** har stängt på "
+                        f"{backend.VECKODAGAR[vald_veckodag].lower()}ar ({st.session_state.valt_datum})."
+                    )
 
                 bcol1, bcol2, bcol3 = st.columns(3)
                 with bcol1:
@@ -691,9 +727,10 @@ with col2:
                         st.rerun()
                     else:
                         st.error(f"Kunde inte spara bokningen: {fel}")
-# ---------
-# "Admin panel" visas endast när customer_id 1 är inloggad
-# ---------
+
+        # ---------
+        # Adminpanel visas endast när customer_id 1 är inloggad
+        # ---------
         if st.session_state.user["customer_id"] == 1:
             with st.expander("Adminpanel — Systemöversikt", expanded=False):
                 st.subheader("Administratörsvy (Kund-ID #1)")

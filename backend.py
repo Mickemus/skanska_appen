@@ -1,113 +1,38 @@
 import mysql.connector
 import streamlit as st
 from sshtunnel import SSHTunnelForwarder
+
 # Konstanter för Superduperbussen
 MAX_BUSS_PLATSER = 50
 DEFAULT_BOKADE_PLATSER = 45
 
-# Katalog över alla aktiviteter
-ALLA_AKTIVITETER = [
-    # --- NÖJEN ---
-    {
-        "kategori": "amusement",
-        "id": 1,
-        "plats_namn": "Ystad Djurpark",
-        "kort_info": "Info om Ystad Djurpark",
-        "bild_url": "https://placehold.co/600x300?text=Ystad+Djurpark",
-        "lang_text": "Information om Ystad Djurpark, djuren, matställen och aktiviteter.",
-        "municipality_id": 29,
-        "pris": 299.00,
-    },
-    {
-        "kategori": "amusement",
-        "id": 2,
-        "plats_namn": "Tosselilla",
-        "kort_info": "Info om Tosselilla",
-        "bild_url": "https://placehold.co/600x300?text=Tosselilla",
-        "lang_text": "Information om Tosselilla Sommarland, vattenland och karuseller.",
-        "municipality_id": 26,
-        "pris": 415.00,
-    },
-    {
-        "kategori": "amusement",
-        "id": 3,
-        "plats_namn": "Malmö Museum",
-        "kort_info": "Info om Malmö Museum",
-        "bild_url": "https://placehold.co/600x300?text=Malmo+Museum",
-        "lang_text": "Information om Malmö Museum, slottet, akvariet och utställningarna.",
-        "municipality_id": 17,
-        "pris": 60.00,
-    },
-    # --- PLATSER ---
-    {
-        "kategori": "place",
-        "id": 1,
-        "plats_namn": "Glumslövs Backar",
-        "kort_info": "Info om Glumslövs Backar",
-        "bild_url": "https://placehold.co/600x300?text=Glumslovs+Backar",
-        "lang_text": "Information om vandringsleder och utsikten över Öresund.",
-        "municipality_id": 14,
-        "pris": 0.00,
-    },
-    {
-        "kategori": "place",
-        "id": 2,
-        "plats_namn": "Söderåsens Nationalpark",
-        "kort_info": "Info om Söderåsens Nationalpark",
-        "bild_url": "https://placehold.co/600x300?text=Soderasen",
-        "lang_text": "Information om Kopparhatten, Skäralid och bokskogarna.",
-        "municipality_id": 11,
-        "pris": 0.00,
-    },
-    {
-        "kategori": "place",
-        "id": 3,
-        "plats_namn": "Ales Stenar",
-        "kort_info": "Info om Ales Stenar",
-        "bild_url": "https://placehold.co/600x300?text=Ales+Stenar",
-        "lang_text": "Information om skeppssättningen vid Kåseberga.",
-        "municipality_id": 29,
-        "pris": 0.00,
-    },
-    # --- FIKA ---
-    {
-        "kategori": "fika",
-        "id": 1,
-        "plats_namn": "Ebbas Fik",
-        "kort_info": "Info om Ebbas Fik",
-        "bild_url": "https://placehold.co/600x300?text=Ebbas+Fik",
-        "lang_text": "Information om 50-talsfiket i Helsingborg.",
-        "municipality_id": 6,
-        "pris": 0.00,
-    },
-    {
-        "kategori": "fika",
-        "id": 2,
-        "plats_namn": "Färg från förr",
-        "kort_info": "Info om Färg från förr",
-        "bild_url": "https://placehold.co/600x300?text=Farg+fran+forr",
-        "lang_text": "Information om Färg från förr, byggnadsvård och fika.",
-        "municipality_id": 29,
-        "pris": 0.00,
-    },
-    {
-        "kategori": "fika",
-        "id": 3,
-        "plats_namn": "Alice och Kattens Tesalong",
-        "kort_info": "Info om Alice och Kattens Tesalong",
-        "bild_url": "https://placehold.co/600x300?text=Alice+och+Katten",
-        "lang_text": "Information om tesalongen i Lund.",
-        "municipality_id": 16,
-        "pris": 0.00,
-    },
-]
+VECKODAGAR = {
+    1: "Måndag",
+    2: "Tisdag",
+    3: "Onsdag",
+    4: "Torsdag",
+    5: "Fredag",
+    6: "Lördag",
+    7: "Söndag",
+}
+
+# Standardbilder kopplade till kategori och ID (eftersom bild-URL inte lagras i DB)
+BILD_KATALOG = {
+    ("amusement", 1): "https://placehold.co/600x300?text=Ystad+Djurpark",
+    ("amusement", 2): "https://placehold.co/600x300?text=Tosselilla",
+    ("amusement", 3): "https://placehold.co/600x300?text=Malmo+Museum",
+    ("place", 1): "https://placehold.co/600x300?text=Glumslovs+Backar",
+    ("place", 2): "https://placehold.co/600x300?text=Soderasen",
+    ("place", 3): "https://placehold.co/600x300?text=Ales+Stenar",
+    ("fika", 1): "https://placehold.co/600x300?text=Ebbas+Fik",
+    ("fika", 2): "https://placehold.co/600x300?text=Farg+fran+forr",
+    ("fika", 3): "https://placehold.co/600x300?text=Alice+och+Katten",
+}
 
 
 # ----------------------------------------
 # Databaskoppling
 # ----------------------------------------
-
-
 @st.cache_resource
 def get_ssh_tunnel():
     tunnel = SSHTunnelForwarder(
@@ -118,7 +43,7 @@ def get_ssh_tunnel():
             st.secrets["DB_HOST"].replace(":3306", "").strip(),
             3306,
         ),
-        set_keepalive=30.0,  # Skickar livstecken så One.com inte kopplar ner
+        set_keepalive=30.0,
     )
     tunnel.start()
     return tunnel
@@ -144,7 +69,6 @@ def get_db_connection():
         try:
             return _connect_mysql(tunnel.local_bind_port)
         except Exception:
-            # Om tunneln har dött i bakgrunden: rensa cachen och öppna en ny tunnel
             try:
                 tunnel.stop()
             except Exception:
@@ -153,30 +77,176 @@ def get_db_connection():
             tunnel = get_ssh_tunnel()
             return _connect_mysql(tunnel.local_bind_port)
     except Exception as err:
-        st.error(f"🚨 Kunde inte ansluta till databasen: {err}")
         print(f"CRITICAL DB CONNECTION ERROR: {err}")
         raise mysql.connector.Error(str(err))
 
-def verifiera_inloggning(email, password):
-    """Kollar om e-post och lösenord stämmer i tabellen customers."""
+
+# ----------------------------------------
+# Hämta aktiviteter, info & öppettider från DB
+# ----------------------------------------
+def _format_tid(val):
+    """Omvandlar MySQL TIME (timedelta eller str) till HH:MM."""
+    if val is None:
+        return None
+    if hasattr(val, "total_seconds"):
+        total_sec = int(val.total_seconds())
+        hours = total_sec // 3600
+        minutes = (total_sec % 3600) // 60
+        return f"{hours:02d}:{minutes:02d}"
+    return str(val)[:5]
+
+
+def _hamta_oppettider_dict(cursor, tabell_namn, id_kolumn):
+    """Hämtar öppettider grupperade per aktivitets-ID från angiven öppettidstabell."""
+    cursor.execute(
+        f"""
+        SELECT {id_kolumn} AS item_id, weekday, is_open, opening_time, closing_time
+        FROM {tabell_namn}
+        ORDER BY {id_kolumn} ASC, weekday ASC
+        """
+    )
+    oppettider_per_id = {}
+    for row in cursor.fetchall():
+        item_id = row["item_id"]
+        oppettider_per_id.setdefault(item_id, {})
+        open_str = _format_tid(row["opening_time"])
+        close_str = _format_tid(row["closing_time"])
+
+        if not row["is_open"]:
+            visnings_text = "Stängt"
+        elif open_str == "00:00" and close_str == "23:59":
+            visnings_text = "Öppet dygnet runt (24/7)"
+        else:
+            visnings_text = f"{open_str}–{close_str}"
+
+        oppettider_per_id[item_id][int(row["weekday"])] = {
+            "weekday": int(row["weekday"]),
+            "dag_namn": VECKODAGAR.get(int(row["weekday"]), f"Dag {row['weekday']}"),
+            "is_open": bool(row["is_open"]),
+            "opening_time": open_str,
+            "closing_time": close_str,
+            "text": visnings_text,
+        }
+    return oppettider_per_id
+
+
+@st.cache_data(ttl=60)
+def hamta_alla_aktiviteter():
+    """
+    Hämtar samtliga nöjen, platser och fikaställen inklusive deras
+    infotext, kommun och öppettider direkt från databasen.
+    """
+    aktiviteter = []
     try:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
-        query = """
-            SELECT c.*, m.municipality_name 
-            FROM customers c
-            LEFT JOIN municipalities m ON c.municipality_id = m.municipality_id
-            WHERE c.email = %s AND c.password = %s
-        """
-        cursor.execute(query, (email.strip(), password))
-        user = cursor.fetchone()
+
+        amusement_hours = _hamta_oppettider_dict(
+            cursor, "amusement_opening_hours", "amusement_id"
+        )
+        place_hours = _hamta_oppettider_dict(
+            cursor, "place_opening_hours", "place_id"
+        )
+        fika_hours = _hamta_oppettider_dict(
+            cursor, "fika_opening_hours", "fika_id"
+        )
+
+        # 1. Nöjen (amusements)
+        cursor.execute(
+            """
+            SELECT a.amusement_id AS id, a.amusement_name AS namn, a.amusement_info AS info,
+                   a.ticket_price AS pris, a.municipality_id, m.municipality_name
+            FROM amusements a
+            JOIN municipalities m ON a.municipality_id = m.municipality_id
+            ORDER BY a.amusement_id ASC
+            """
+        )
+        for row in cursor.fetchall():
+            item_id = row["id"]
+            aktiviteter.append(
+                {
+                    "kategori": "amusement",
+                    "id": item_id,
+                    "plats_namn": row["namn"],
+                    "kort_info": f"📍 Kommun: {row['municipality_name']}",
+                    "bild_url": BILD_KATALOG.get(
+                        ("amusement", item_id),
+                        f"https://placehold.co/600x300?text={row['namn']}",
+                    ),
+                    "lang_text": row["info"],
+                    "municipality_id": row["municipality_id"],
+                    "municipality_name": row["municipality_name"],
+                    "pris": float(row["pris"]),
+                    "oppettider": amusement_hours.get(item_id, {}),
+                }
+            )
+
+        # 2. Platser (places)
+        cursor.execute(
+            """
+            SELECT p.place_id AS id, p.place_name AS namn, p.place_info AS info,
+                   p.municipality_id, m.municipality_name
+            FROM places p
+            JOIN municipalities m ON p.municipality_id = m.municipality_id
+            ORDER BY p.place_id ASC
+            """
+        )
+        for row in cursor.fetchall():
+            item_id = row["id"]
+            aktiviteter.append(
+                {
+                    "kategori": "place",
+                    "id": item_id,
+                    "plats_namn": row["namn"],
+                    "kort_info": f"📍 Kommun: {row['municipality_name']}",
+                    "bild_url": BILD_KATALOG.get(
+                        ("place", item_id),
+                        f"https://placehold.co/600x300?text={row['namn']}",
+                    ),
+                    "lang_text": row["info"],
+                    "municipality_id": row["municipality_id"],
+                    "municipality_name": row["municipality_name"],
+                    "pris": 0.00,
+                    "oppettider": place_hours.get(item_id, {}),
+                }
+            )
+
+        # 3. Fika (fika)
+        cursor.execute(
+            """
+            SELECT f.fika_id AS id, f.fika_name AS namn, f.fika_info AS info,
+                   f.municipality_id, m.municipality_name
+            FROM fika f
+            JOIN municipalities m ON f.municipality_id = m.municipality_id
+            ORDER BY f.fika_id ASC
+            """
+        )
+        for row in cursor.fetchall():
+            item_id = row["id"]
+            aktiviteter.append(
+                {
+                    "kategori": "fika",
+                    "id": item_id,
+                    "plats_namn": row["namn"],
+                    "kort_info": f"📍 Kommun: {row['municipality_name']}",
+                    "bild_url": BILD_KATALOG.get(
+                        ("fika", item_id),
+                        f"https://placehold.co/600x300?text={row['namn']}",
+                    ),
+                    "lang_text": row["info"],
+                    "municipality_id": row["municipality_id"],
+                    "municipality_name": row["municipality_name"],
+                    "pris": 0.00,
+                    "oppettider": fika_hours.get(item_id, {}),
+                }
+            )
+
         cursor.close()
         conn.close()
-        return user
+        return aktiviteter
     except mysql.connector.Error as err:
-        st.error(f"Databasfel vid inloggning: {err}")
-        print(f"DB ERROR: {err}")
-        return None
+        st.error(f"Kunde inte hämta aktiviteter från databasen: {err}")
+        return []
 
 
 # ----------------------------------------
@@ -199,8 +269,9 @@ def berakna_respris(kund_kommun_id, valda_mal, adults, children):
 
 
 def filtrera_aktiviteter(kategori_kod, sok_ord=""):
-    """Hämtar aktiviteter för en kategori och filtrerar på eventuell sökfras."""
-    items = [a for a in ALLA_AKTIVITETER if a["kategori"] == kategori_kod]
+    """Hämtar aktiviteter från databasen för en kategori och filtrerar på eventuell sökfras."""
+    alla = hamta_alla_aktiviteter()
+    items = [a for a in alla if a["kategori"] == kategori_kod]
     if sok_ord and sok_ord.strip():
         s = sok_ord.lower().strip()
         items = [
@@ -278,7 +349,8 @@ def verifiera_inloggning(email, password):
         cursor.close()
         conn.close()
         return user
-    except mysql.connector.Error:
+    except mysql.connector.Error as err:
+        st.error(f"Databasfel vid inloggning: {err}")
         return None
 
 
