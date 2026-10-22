@@ -1,5 +1,5 @@
 streamlit
 mysql-connector-python
-pyarrow<25
+pyarrow<27
 sshtunnel
-paramiko<4.0.0
+paramiko<6.0.0
