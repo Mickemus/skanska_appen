@@ -725,20 +725,7 @@ st.markdown(  # Nu sprutar vi in vår egen designkod (CSS) direkt i webbsidan:
 
     
 
-    /* Mobilanpassning för små skärmar */ /* Specialregler om någon surfar på en mobiltelefon (smalare än 600 pixlar) */
-    @media (max-width: 600px) {{ /* Om skärmen är max 600 pixlar bred: */
-        .block-container {{ /* Justera huvudlådan: */
-            padding-left: 0.55rem !important; /* Mindre sidomarginal till vänster så korten får plats */
-            padding-right: 0.55rem !important; /* Mindre sidomarginal till höger */
-            padding-top: 0.8rem !important; /* Mindre luft högst upp */
-        }} /* Mobil-låda klar */
-        .card-img, .card-img-closed {{ /* Justera bilderna på mobilen: */
-            height: 160px; /* Gör bilderna lite lägre (160px istället för 190px) så man slipper scrolla ihjäl sig */
-        }} /* Mobil-bilder klara */
-        button[data-baseweb="tab"] {{ /* Justera flik-knapparna på mobilen: */
-            padding: 0.45rem 0.7rem !important; /* Gör dem aningen mer kompakta */
-        }} /* Mobil-flikar klara */
-    }} /* Mobilanpassning klar */
+   
     </style> <!-- Stänger stil-avdelningen -->
     """,  # Här tar vår stora design-text slut
     unsafe_allow_html=True,  # Ger Streamlit tillåtelse att tolka vår designkod som riktig webbkod (HTML/CSS)
