@@ -498,7 +498,7 @@ st.markdown(  # Nu sprutar vi in vår egen designkod (CSS) direkt i webbsidan:
         line-height: 1.15 !important; /* Lagom avstånd om rubriken bryts på två rader */
     }} /* Huvudrubrik klar */
     .hero-meta {{ /* Väljer raden under rubriken (den som visar hur många bussplatser som är kvar) */
-        color: rgba(255, 255, 255, 0.88) !important; /* Nästan helt vit text (88% synlig) */
+        color: rgba(255, 255, 255, 1.0) !important; /* Nästan helt vit text (88% synlig) */
         font-size: 0.8rem !important; /* Lite mindre och nättare textstorlek */
         font-weight: 500 !important; /* Halvfet text så den är lättläst */
         margin-top: 0.25rem !important; /* En liten glipa upp till huvudrubriken */
@@ -512,6 +512,7 @@ st.markdown(  # Nu sprutar vi in vår egen designkod (CSS) direkt i webbsidan:
         min-height: 40px !important; /* Minst 40 pixlar hög så den matchar logga-in-knappen */
     }} /* Datumruta klar */
     div[data-testid="stDateInput"] input {{ /* Väljer själva datumtexten inuti kalenderrutan */
+        background-color: #FFFFFF !important; /* Vit bakgrund */
         color: #0F172A !important; /* Mörkblå/svart textfärg */
         font-size: 0.85rem !important; /* Lagom kompakt textstorlek */
         font-weight: 500 !important; /* Halvfet stil */
@@ -528,7 +529,9 @@ st.markdown(  # Nu sprutar vi in vår egen designkod (CSS) direkt i webbsidan:
         padding: 0.4rem 0.75rem !important; /* Lagom med vaddering inuti knappen */
     }} /* Logga-in-knapp klar */
     div[data-testid="stPopover"] > button p {{ /* Väljer texten inuti Logga-in-knappen */
+        background-color: #FFFFFF !important; /* Vit bakgrund */
         color: #0F172A !important; /* Säkerställer att texten håller sig mörk */
+        
         font-size: 0.85rem !important; /* Och behåller rätt storlek */
         font-weight: 600 !important; /* Och rätt fetstil */
     }} /* Knapptext klar */
@@ -546,7 +549,7 @@ st.markdown(  # Nu sprutar vi in vår egen designkod (CSS) direkt i webbsidan:
    /* Hela fliksektionen nederdelen bakom kort och bilder */ /* Den stora sandfärgade lådan som håller i flikarna och korten */
     div[data-testid="stTabs"] {{ /* Väljer hela flik-området */
         background-color: #c2b9ac !important; /* Varm, jordnära beige/grå bakgrundsfärg */
-        border: 1px solid rgba(255, 255, 255, 1.0) !important; /* En krispig vit ram runt hela boxen */
+        border: 1px solid rgba(0, 0, 0, 1.0) !important; /* En krispig vit ram runt hela boxen */
         border-radius: 10px !important; /* Rundade hörn */
         padding: 1.0rem !important; /* Luft mellan kanten och korten inuti */
     }} /* Flik-lådan klar */
