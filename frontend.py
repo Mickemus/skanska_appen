@@ -588,7 +588,7 @@ st.markdown(  # Nu sprutar vi in vår egen designkod (CSS) direkt i webbsidan:
     }} /* Flik-knapp klar */
 
     button[data-baseweb="tab"] p {{ /* Väljer texten på flik-knapparna */
-        color: #F0E2C3 !important; /* Färgsätter fliktexten */
+        color: #000000 !important; /* Färgsätter fliktexten */
         font-size: 0.88rem !important; /* Lagom textstorlek */
         font-weight: 500 !important; /* Halvfet stil */
         margin: 0 !important; /* Ingen marginal */
@@ -596,7 +596,7 @@ st.markdown(  # Nu sprutar vi in vår egen designkod (CSS) direkt i webbsidan:
 
     /* Aktiv flik */ /* Så här ser fliken ut när man har klickat på den */
     button[data-baseweb="tab"][aria-selected="true"] {{ /* Väljer just den flik som är aktiv just nu */
-        background-color: #F0E2C3 !important; /* Får en ljus sandfärgad bakgrund */
+        background-color: #000000 !important; /* Får en ljus sandfärgad bakgrund */
     }} /* Aktiv flikbakgrund klar */
 
     button[data-baseweb="tab"][aria-selected="true"] p {{ /* Väljer texten på den aktiva fliken */
@@ -726,7 +726,22 @@ st.markdown(  # Nu sprutar vi in vår egen designkod (CSS) direkt i webbsidan:
         font-weight: 500 !important; /* Halvfet text */
     }} /* Sekundärknappar klara */
 
-    
+    /* Meddelanderutor (st.success / boknings_meddelande, st.warning, st.error, st.info) */
+div[data-testid="stAlert"],
+div[data-baseweb="notification"] {{
+background-color: #BAFFC9 !important; /* Solid pastellgrön (samma som .badge-open) */
+color: #000000 !important; /* Mörkgrön text */
+border: 1px solid #000000 !important; /* Svart kantlinje */
+border-radius: 10px !important; /* Runda hörn */
+opacity: 1.0 !important; /* 1.0 = helt ogenomskinlig */
+}}
+/* Tvinga texten inuti meddelanderutan att ha rätt färg */
+div[data-testid="stAlert"] p,
+div[data-testid="stAlert"] span,
+div[data-baseweb="notification"] p {{
+color: #000000 !important;
+font-weight: 600 !important;
+}}
 
    
     </style> <!-- Stänger stil-avdelningen -->
