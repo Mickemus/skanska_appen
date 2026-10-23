@@ -404,9 +404,10 @@ def berakna_respris(kund_kommun_id, valda_mal, adults, children):               
         biljett_pris_per_person += mal["pris"]                                      # Plussar på ställets inträdespris på biljetträknaren
         unika_kommuner.add(mal["municipality_id"])                                  # Lägger till målets kommun i vår kommun-samling (ligger den redan där händer ingenting!)
 
-    antal_resenarer = adults + children                                             # Räknar ihop totalt antal vuxna + barn som ska åka med
-    buss_avgift = len(unika_kommuner) * 45.00                                       # Bussavgiften är 45 kr per unik kommun som bussen "beträder"!
-    total_price = (biljett_pris_per_person * antal_resenarer) + buss_avgift         # Totalpriset = (alla inträden × antal personer) + bussavgiften
+    antal_resenarer = adults + children                                             # Räknar ihop totalt antal vuxna + barn som ska ha varsitt säte på bussen
+    pris_faktor = adults + (children * 0.5)                                         # Vuxna betalar fullpris (1.0x) och barn betalar halva priset (0.5x)
+    buss_avgift = len(unika_kommuner) * 45.00 * pris_faktor                         # Bussavgiften är 45 kr per kommun × (vuxna + 0.5 × barn)
+    total_price = (biljett_pris_per_person * antal_resenarer) + buss_avgift         # Totalpriset = (alla inträden × baserat på vilka) + bussavgiften
 
     return total_price, buss_avgift, len(unika_kommuner), antal_resenarer           # Skickar tillbaka alla fyra siffrorna till kassan i frontend!
 

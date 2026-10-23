@@ -723,6 +723,8 @@ st.markdown(  # Nu sprutar vi in vår egen designkod (CSS) direkt i webbsidan:
         font-weight: 500 !important; /* Halvfet text */
     }} /* Sekundärknappar klara */
 
+    
+
     /* Mobilanpassning för små skärmar */ /* Specialregler om någon surfar på en mobiltelefon (smalare än 600 pixlar) */
     @media (max-width: 600px) {{ /* Om skärmen är max 600 pixlar bred: */
         .block-container {{ /* Justera huvudlådan: */
@@ -1070,9 +1072,10 @@ with flikar[3]:  # Kliver in i den fjärde fliken ("Bokning", som har plats numm
                     )  # Kalkylatorn räknar så det ryker!
                 )  # Och ger oss totalpris, bussavgift, antal besökta kommuner och totalt antal resenärer
 
-                st.write(  # Skriver ut hur bussavgiften är uträknad (45 kr per kommun som bussen passerar):
-                    f"Bussavgift ({antal_kommuner} kommuner × 45 kr): **{buss_avgift:.2f} kr**"  # Tydlig prisinfo
-                )  # Bussavgiftsrad klar
+                
+                st.write(  # Skriver ut hur bussavgiften är uträknad för vuxna (45 kr) och barn (0.5 × 45 kr):
+                    f"Bussavgift ({antal_kommuner} kommuner · {adults} vuxna × 45 kr, {children} barn × 22.50 kr): **{buss_avgift:.2f} kr**"  # Tydlig prisinfo
+                        )  # Bussavgiftsrad klar
                 st.markdown(f"### Totalpris: {total_price:.2f} kr")  # Skriver ut hela totalpriset med stor rubrikstil!
 
                 for_manga_resenarer = antal_resenarer > lediga_platser  # Kollar om sällskapet är större än antalet lediga säten i bussen
