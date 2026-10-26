@@ -43,7 +43,7 @@ VECKODAGAR = {                                                                  
     7: "Söndag",                                                                # Dag 7 är Söndag
 }                                                                               # "Parleouren" är stängd
 
-
+@st.cache_data
 def lokal_bild_till_url(filnamn, fallback_text="Bild+saknas"):                  # Ett recept som letar upp en bild på datorn och gör den redo för webben, annars "bild saknas"
     """Hittar en lokal bild i samma mapp (även med annan/dubbel filändelse) och gör om till Base64-URL."""  # Beskrivning av vad receptet gör
     bas_namn = Path(filnamn).stem                                               # Klipper bort filändelsen (så "tosselilla.jpg" blir bara "tosselilla")
@@ -97,6 +97,12 @@ BILD_FILER_NAMN = {                                                             
     "färg från förr": "farg_fran_forr.jpg",                                     # Om namnet innehåller "färg från förr" -> ta denna bild
     "alice och katten": "alice_och_katten.jpg",                                 # Om namnet innehåller "alice och katten" -> ta denna bild
 }                                                                               # Namn-katalogen slut
+
+
+def rensa_bokningscache():                                                      # Städpatrullen som tömmer cachen när någon bokat, ändrat eller avbokat en resa
+    hamta_lediga_platser.clear()                                                # Tvingar appen att räkna om lediga bussplatser
+    hamta_redigerbara_bokningar.clear()                                         # Uppdaterar listan med ombokningsbara resor
+    hamta_betalningshistorik.clear()
 
 
 def hamta_bild_for_aktivitet(kategori, item_id, namn):                          # Receptet som bestämmer vilken bild ett utflyktsmål ska få
@@ -274,7 +280,7 @@ def _hamta_oppettider_dict(cursor, tabell_namn, id_kolumn):                     
     return oppettider_per_id                                                    # Skickar tillbaka hela den färdiga uppslagsboken med öppettider
 
 
-@st.cache_data(ttl=60)                                                          # Sparar resultatet i 60 sekunder så vi slipper fråga databasen vid varje litet musklick
+@st.cache_data(ttl=3600)                                                        # Sparar resultatet i 1 timme. 
 def hamta_alla_aktiviteter():                                                   # Stora receptet som hämtar ALLA utflyktsmål i hela Skåne
     """                                                                         # Startar beskrivningstexten
     Hämtar samtliga nöjen, platser och fikaställen inklusive deras              # Berättar vad som hämtas
@@ -433,7 +439,7 @@ def filtrera_aktiviteter(kategori_kod, sok_ord=""):                             
 # Användare, Inloggning ...Kommuner
 # Som har med konton att göra
 # ----------------------------------------
-
+@st.cache_data(ttl=3600)
 def hamta_kommuner():                                                                               # Hämtar listan på alla kommuner (används i rullgardinen när man skapar konto)
     try:                                                                                            # Försök fråga databasen:
         conn = get_db_connection()                                                                  # Ring upp databasen
@@ -468,7 +474,8 @@ def registrera_kund_i_db(first_name, last_name, email, password, phone, municipa
                 municipality_id,                                                                    # Hemkommunens ID-nummer
             ),                                                                                      # Alla 6 uppgifter är med
         )                                                                                           # Nu ligger raden redo i databasen
-        conn.commit()                                                                               # VIKTIGT! "commit()" är som att trycka på "Spara", utan denna rad glömmer databasen allt vi nyss gjorde!
+        conn.commit()
+        hamta_alla_kunder.clear()                                                                               # VIKTIGT! "commit()" är som att trycka på "Spara", utan denna rad glömmer databasen allt vi nyss gjorde!
         cursor.close()                                                                              # Stäng budbäraren
         conn.close()                                                                                # Lägg på luren
         return True, "Konto skapat! Du är nu inloggad."                                             # Meddela frontend att allt gick galant!
@@ -500,7 +507,7 @@ def verifiera_inloggning(email, password):                                      
         st.error(f"Databasfel vid inloggning: {err}")                                               # Visa felet på skärmen
         return None                                                                                 # Och släpp inte in någon
 
-
+@st.cache_data(ttl=300)
 def hamta_alla_kunder():                                                                            # Chefens favoritfunktion: hämtar hela kundlistan till Admin-fliken!
     """Hämtar alla registrerade kunder för Adminpanelen."""                                         # Beskrivning
     try:                                                                                            # Försök hämta kunderna:
@@ -527,7 +534,7 @@ def hamta_alla_kunder():                                                        
 # Platser på bussen och bokningar
 # Här håller vi räkningen på sätena i Superduperbussen och sparar resor
 # ----------------------------------------
-
+@st.cache_data(ttl=120)
 def hamta_lediga_platser(travel_date, exkludera_booking_id=None):                                   # Räknar hur många säten som är lediga en viss dag
     """                                                                                             # Start på beskrivning
     Räknar ut lediga platser på bussen (Max 50 platser, 45 bokade som default).                     # Förklarar bussregeln
@@ -634,13 +641,14 @@ def spara_bokning_i_db(                                                         
         )                                                                                           # Betalningen är registrerad!
 
         conn.commit()                                                                               # Tryck på den stora SPARA-knappen i databasen så alla 5 stegen låses fast permanent!
+        rensa_bokningscache()
         cursor.close()                                                                              # Stäng budbäraren
         conn.close()                                                                                # Lägg på luren
         return booking_id, None                                                                     # Skicka tillbaka det nya bokningsnumret och "None" (inga fel!)
     except mysql.connector.Error as err:                                                            # Om något av stegen snubblade på mållinjen:
         return None, str(err)                                                                       # Skicka tillbaka "inget bokningsnummer" och felmeddelandet
 
-
+@st.cache_data(ttl=120)
 def hamta_redigerbara_bokningar(customer_id, is_admin=False):                                       # Hämtar resor som ligger i framtiden så man kan ändra dem
     """Hämtar bekräftade bokningar som inte har inträffat ännu samt deras valda resmål."""          # Beskrivning
     try:                                                                                            # Försök hämta bokningarna:
@@ -791,6 +799,7 @@ def uppdatera_bokning_i_db(                                                     
             )                                                                                       # Nytt kvitto skapat!
 
         conn.commit()                                                                               # Tryck på SPARA i databasen så alla ändringar spikas fast!
+        rensa_bokningscache()
         cursor.close()                                                                              # Stäng budbäraren
         conn.close()                                                                                # Lägg på luren
         return True, None                                                                           # Säg till frontend att allt gick som smort!
@@ -820,6 +829,7 @@ def avboka_bokning_i_db(booking_id, aterbetalning_belopp, payment_method):      
             )                                                                                       # Återbetalningskvitto skapat!
 
         conn.commit()                                                                               # Spara avbokningen och återbetalningen permanent i databasen
+        rensa_bokningscache()
         cursor.close()                                                                              # Stäng budbäraren
         conn.close()                                                                                # Lägg på luren
         return True, None                                                                           # Meddela frontend att avbokningen lyckades!
@@ -832,7 +842,7 @@ def avboka_bokning_i_db(booking_id, aterbetalning_belopp, payment_method):      
 # Betalningshistorik
 # Hämtar alla kvitton åt inloggad kund eller admin
 # ----------------------------------------
-
+@st.cache_data(ttl=120)
 def hamta_betalningshistorik(customer_id, is_admin=False):                                          # Receptet som plockar fram alla kvitton
     """Hämtar alla bokningar och tillhörande betalningar, sorterat med nyaste överst."""            # Beskrivning
     try:                                                                                            # Försök hämta kvittohistoriken:

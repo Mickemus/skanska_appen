@@ -469,13 +469,14 @@ def visa_kvitto_modal():                                                        
 
 BASE_DIR = Path(__file__).parent                                                # Tar reda på exakt vilken mapp på datorn som den här filen bor i
 
+@st.cache_data                                                                  # Sparar bakgrundsbilden i minnet så datorn slipper läsa in den vid varje klick... <--- Ny 20261026 som jag la till
 def get_base64_image(image_name):                                               # Ett litet recept som letar upp bakgrundsbilden och gör om den till textkod
     bas_namn = Path(image_name).stem                                            # Plockar ut filnamnet utan punkt och ändelse (t.ex. "bakgrund" ur "bakgrund.jpg")
     filer_i_mappen = {f.name.lower(): f for f in BASE_DIR.iterdir() if f.is_file()} # Gör en lista på alla filer i vår mapp (med små bokstäver så vi inte missar ".JPG")
     for namn in [image_name, f"{image_name}.jpg", f"{bas_namn}.jpg", f"{bas_namn}.jpeg", f"{bas_namn}.png", f"{bas_namn}.webp"]:    # Testar alla tänkbara bildformat
         matchad_fil = filer_i_mappen.get(namn.lower())                          # Kollar om just den här stavningen finns i mappen
         if matchad_fil:                                                         # Om vi fick napp och hittade bildfilen:
-            return base64.b64encode(matchad_fil.read_bytes()).decode()          # Läser in bilden och förvandlar den till en lång Base64 textsträng
+            return base64.b64encode(matchad_fil.read_bytes()).decode()          # Läser in bilden och förvandlar den till en lång Base64-textsträng
     print(f"[VARNING] Hittade inte bakgrundsbilden '{image_name}' i {BASE_DIR}")    # Om bilden är spårlöst försvunnen, skvallra i terminalen!
     return ""                                                                   # Skicka tillbaka tom text om ingen bild hittades
 
