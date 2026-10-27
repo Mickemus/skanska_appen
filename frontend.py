@@ -1,8 +1,10 @@
-import base64                           # "Verktygslådan" som kan översätta bilder till långa bokstavskoder (så webbläsaren fattar dem)
-from pathlib import Path                # Hämtar en digital "seeker" som är expert på att hitta filer och mappar på datorn
-from datetime import date, timedelta    # Hämtar en kalender-assistent så att datorn vet vilket datum det är idag och imorgon
-import streamlit as st                  # Hämtar "Streamlit" (och ger den smeknamnet "st")... anledningen till att vi valde streamlit var för att det användes i förra kursen
-import backend                          # Kopplar in vår egen fil "backend.py", "maskinen" som sköter allt man inte ser som "user/customer"
+import re
+import base64                                # "Verktygslådan" som kan översätta bilder till långa bokstavskoder (så webbläsaren fattar dem)
+from pathlib import Path                     # Hämtar en digital "seeker" som är expert på att hitta filer och mappar på datorn
+from datetime import date, timedelta         # Hämtar en kalender-assistent så att datorn vet vilket datum det är idag och imorgon
+import streamlit as st                       # Hämtar "Streamlit" (och ger den smeknamnet "st")... anledningen till att vi valde streamlit var för att det användes i förra kursen
+import streamlit.components.v1 as components # Realtidscheck
+import backend                               # Kopplar in vår egen fil "backend.py", "maskinen" som sköter allt man inte ser som "user/customer"
 
 #-- Import slut av verktyg
 
@@ -54,6 +56,35 @@ if "datum_varning" not in st.session_state:         # Kollar i minnet: "Finns de
     st.session_state.datum_varning = None           # Sätt varningen till tom tills någon faktiskt väljer en stängd dag
 
 
+
+# Hjälpfunktion för att tvätta och formatera telefonnummer som databasen vill ha det
+def validera_och_formatera_telefon(raw_phone):
+    ph = raw_phone.strip()
+    if not ph:
+        return True, "", None  # Telefonnummer är frivilligt i formuläret
+
+    # Endast siffror, samt valfritt '+' allra först för landskod (inga mellanslag, bokstäver eller andra symboler)
+    if not re.fullmatch(r"\+?[0-9]+", ph):
+        return False, "Telefonnumret får endast innehålla siffror och eventuellt '+' i början för landskod.", None
+
+    # Om numret börjar med +46, gör om till 0 (t.ex. +46701234567 -> 0701234567)
+    if ph.startswith("+46"):
+        ph = "0" + ph[3:]
+    elif ph.startswith("+"):
+        # Annan landskod än +46: kontrollera rimlig längd (8-15 siffror inkl. landskod)
+        if not (8 <= len(ph) <= 16):
+            return False, "Ange ett giltigt telefonnummer (8–15 siffror).", None
+        return True, ph, None
+
+    # Kontrollera att ett svenskt nummer har 10 siffror (t.ex. 0701234567)
+    if len(ph) != 10 or not ph.startswith("0"):
+        return False, "Svenska telefonnummer måste bestå av 10 siffror (t.ex. 0701234567 eller +46701234567).", None
+
+    # Formatera som databasens befintliga rader: 070-1234567
+    db_format = f"{ph[:3]}-{ph[3:]}"
+    return True, db_format, None
+
+
 def uppdatera_valt_datum(nytt_datum):                                           # Hjälpfunktion som synkar datumbyten mellan sidhuvudet och kassan i Bokning-fliken
     st.session_state.valt_datum = nytt_datum                                    # Uppdatera korttidsminnet med det nya datumet
     st.session_state.boknings_meddelande = None                                 # Städa bort eventuella gamla kvittomeddelanden
@@ -85,6 +116,369 @@ def uppdatera_valt_datum(nytt_datum):                                           
 # Registrera ny användare (Modal)
 # En "Modal" är fint programmerarspråk för en popup-ruta mitt på skärmen
 # ----------------------------------------
+
+def aktivera_realtids_validering():
+    """
+    1. Gör automatiskt första bokstaven stor (f -> F) och resten små i Förnamn & Efternamn.
+    2. Markerar felaktiga tecken i rött med 1 sekunds vibration följt av fast röd färg.
+    3. Visar en popup-ruta vid fältet med exakt felmeddelande tills felet tas bort.
+    """
+    components.html(
+        """
+        <script>
+        const doc = window.parent.document;
+
+        // 1. CSS för 1s vibration, fast röd färg och Popup-ruta vid fel
+        if (!doc.getElementById("skanefun-live-check-css")) {
+            const style = doc.createElement("style");
+            style.id = "skanefun-live-check-css";
+            style.innerHTML = `
+                @keyframes charVibrate1s {
+                    0%, 100% { transform: translateX(0); }
+                    10%, 30%, 50%, 70%, 90% { transform: translateX(-2.5px) rotate(-3deg); }
+                    20%, 40%, 60%, 80% { transform: translateX(2.5px) rotate(3deg); }
+                }
+
+                @keyframes popupFadeIn {
+                    from { opacity: 0; transform: translateY(-4px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
+
+                /* Spegellager för att färgsätta enskilda tecken */
+                .live-char-mirror {
+                    position: absolute !important;
+                    inset: 0 !important;
+                    display: flex !important;
+                    align-items: center !important;
+                    pointer-events: none !important;
+                    overflow: hidden !important;
+                    z-index: 1 !important;
+                    box-sizing: border-box !important;
+                }
+
+                .live-char-track {
+                    white-space: pre !important;
+                    display: inline-block !important;
+                }
+
+                .char-ok {
+                    color: #0F172A !important;
+                    font-weight: inherit !important;
+                }
+
+                /* Ogiltigt tecken: vibrerar i 1 sekund (0.25s * 4) och stannar i fast röd färg */
+                .char-bad {
+                    display: inline-block !important;
+                    color: #DC2626 !important;
+                    font-weight: 700 !important;
+                    animation: charVibrate1s 0.25s ease-in-out 4 !important;
+                    animation-fill-mode: forwards !important;
+                }
+
+                /* Ogiltigt mellanslag: rödmarkerad ruta som vibrerar i 1 sekund */
+                .char-bad-space {
+                    display: inline-block !important;
+                    background-color: rgba(220, 38, 38, 0.28) !important;
+                    border-bottom: 2px solid #DC2626 !important;
+                    color: #DC2626 !important;
+                    min-width: 0.5em !important;
+                    height: 1.15em !important;
+                    vertical-align: middle !important;
+                    animation: charVibrate1s 0.25s ease-in-out 4 !important;
+                    animation-fill-mode: forwards !important;
+                }
+
+                div[data-testid="stTextInput"] input.mirror-active {
+                    color: transparent !important;
+                    -webkit-text-fill-color: transparent !important;
+                    caret-color: #0F172A !important;
+                    background-color: transparent !important;
+                    position: relative !important;
+                    z-index: 2 !important;
+                }
+
+                div[data-testid="stTextInput"] input.mirror-active::placeholder {
+                    color: #94A3B8 !important;
+                    -webkit-text-fill-color: #94A3B8 !important;
+                }
+
+                div[data-baseweb="input"].input-has-error {
+                    border: 1.5px solid #DC2626 !important;
+                    background-color: #FEF2F2 !important;
+                    transition: border-color 0.15s ease, background-color 0.15s ease !important;
+                }
+
+                /* Popup-ruta som dyker upp under fältet när ett fel inträffar */
+                .field-error-popup {
+                    display: none;
+                    margin-top: 0.3rem !important;
+                    padding: 0.38rem 0.65rem !important;
+                    background-color: #7F1D1D !important;
+                    color: #FFFFFF !important;
+                    font-size: 0.78rem !important;
+                    font-weight: 600 !important;
+                    border-radius: 7px !important;
+                    border: 1px solid #DC2626 !important;
+                    line-height: 1.3 !important;
+                    z-index: 50 !important;
+                    animation: popupFadeIn 0.15s ease-out !important;
+                }
+
+                .field-error-popup.visible {
+                    display: block !important;
+                }
+            `;
+            doc.head.appendChild(style);
+        }
+
+        const letterRegex = /^[a-zA-ZåäöÅÄÖ]$/;
+        const digitRegex = /^[0-9]$/;
+        const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+            window.parent.HTMLInputElement.prototype,
+            "value"
+        ).set;
+
+        // 2. Automatisk Upper-sen-Lower omvandling (f -> F på första tecknet, resten små)
+        function autoFormateraCase(inputEl, faltTyp) {
+            if (faltTyp !== "fornamn" && faltTyp !== "efternamn") return;
+            const raw = inputEl.value || "";
+            if (!raw) return;
+
+            let omvandlad = "";
+            for (let i = 0; i < raw.length; i++) {
+                const ch = raw[i];
+                if (i === 0 && letterRegex.test(ch)) {
+                    omvandlad += ch.toUpperCase();
+                } else if (i > 0 && letterRegex.test(ch)) {
+                    omvandlad += ch.toLowerCase();
+                } else {
+                    omvandlad += ch;
+                }
+            }
+
+            if (omvandlad !== raw) {
+                const start = inputEl.selectionStart;
+                const end = inputEl.selectionEnd;
+                nativeInputValueSetter.call(inputEl, omvandlad);
+                inputEl.dispatchEvent(new Event("input", { bubbles: true }));
+                try {
+                    inputEl.setSelectionRange(start, end);
+                } catch (e) {}
+            }
+        }
+
+        // 3. Validera varje tecken och skapa träffsäkra popup-felmeddelanden
+        function valideraTeckenOchFel(faltTyp, text) {
+            const teckenStatus = [];
+            const felMeddelanden = [];
+
+            const laggTillFel = (msg) => {
+                if (!felMeddelanden.includes(msg)) felMeddelanden.push(msg);
+            };
+
+            for (let i = 0; i < text.length; i++) {
+                const ch = text[i];
+                const prev = i > 0 ? text[i - 1] : "";
+                let ok = true;
+
+                if (faltTyp === "fornamn") {
+                    if (digitRegex.test(ch)) {
+                        ok = false;
+                        laggTillFel("Inga siffror är tillåtna i namn.");
+                    } else if (ch === " ") {
+                        ok = false;
+                        laggTillFel('" " Inga mellanslag får användas i förnamn (använd "-" för dubbelnamn).');
+                    } else if (ch === "-") {
+                        if (i === 0 || prev === "-") {
+                            ok = false;
+                            laggTillFel('Bindestreck "-" får endast stå mellan två namndelar.');
+                        }
+                    } else if (!letterRegex.test(ch)) {
+                        ok = false;
+                        laggTillFel("Inga symboler eller specialtecken är tillåtna i namn.");
+                    }
+                } else if (faltTyp === "efternamn") {
+                    if (digitRegex.test(ch)) {
+                        ok = false;
+                        laggTillFel("Inga siffror är tillåtna i namn.");
+                    } else if (ch === " ") {
+                        if (i === 0 || prev === " ") {
+                            ok = false;
+                            laggTillFel('"  " Dubbla eller inledande mellanslag är inte tillåtna i efternamn.');
+                        }
+                    } else if (!letterRegex.test(ch)) {
+                        ok = false;
+                        laggTillFel("Inga symboler eller specialtecken är tillåtna i efternamn.");
+                    }
+                } else if (faltTyp === "losenord") {
+                    if (ch === " ") {
+                        ok = false;
+                        laggTillFel('" " Inga mellanslag får användas i lösenord.');
+                    }
+                } else if (faltTyp === "epost") {
+                    const tillatnaEpost = /^[a-zA-Z0-9._%+@-]$/;
+                    const antalAtHittills = text.slice(0, i + 1).split("@").length - 1;
+                    if (ch === " ") {
+                        ok = false;
+                        laggTillFel('" " Inga mellanslag får användas i e-postadressen.');
+                    } else if (ch === "@" && (i === 0 || antalAtHittills > 1)) {
+                        ok = false;
+                        laggTillFel('E-postadressen får endast innehålla ett "@" efter namnet.');
+                    } else if (ch === "." && (i === 0 || prev === "." || prev === "@")) {
+                        ok = false;
+                        laggTillFel('Punkter får inte ligga direkt efter varandra eller direkt vid "@".');
+                    } else if (!tillatnaEpost.test(ch)) {
+                        ok = false;
+                        laggTillFel("Ogiltig symbol i e-postadressen.");
+                    }
+                } else if (faltTyp === "telefon") {
+                    if (ch === " ") {
+                        ok = false;
+                        laggTillFel('" " Inga mellanslag får användas i telefonnummer.');
+                    } else if (letterRegex.test(ch)) {
+                        ok = false;
+                        laggTillFel("Inga bokstäver är tillåtna i telefonnummer (endast siffror).");
+                    } else if (ch === "+") {
+                        if (i !== 0) {
+                            ok = false;
+                            laggTillFel('Tecknet "+" får endast stå först för landskod (t.ex. +46).');
+                        }
+                    } else if (!digitRegex.test(ch)) {
+                        ok = false;
+                        laggTillFel('Inga symboler är tillåtna i telefonnummer (endast siffror och "+").');
+                    }
+                }
+
+                // För lösenordsfält visas '•' för giltiga tecken och röd ruta/prick vid mellanslag
+                const visatTecken = (faltTyp === "losenord" && ch !== " ") ? "•" : ch;
+                teckenStatus.push({ char: visatTecken, rawChar: ch, ok: ok });
+            }
+
+            return { teckenStatus, felMeddelanden };
+        }
+
+        // 4. Koppla spegel + popup till varje fält i registreringsformuläret
+        function kopplaFalt(inputEl, faltTyp) {
+            if (!inputEl || inputEl.dataset.liveCheckBound === "true") return;
+            inputEl.dataset.liveCheckBound = "true";
+
+            const baseInputWrapper = inputEl.parentElement;
+            const outerInputBox = inputEl.closest('div[data-baseweb="input"]') || baseInputWrapper;
+            const stTextInputContainer = inputEl.closest('div[data-testid="stTextInput"]');
+            baseInputWrapper.style.position = "relative";
+
+            // Spegellager för tecken
+            const mirror = doc.createElement("div");
+            mirror.className = "live-char-mirror";
+            const track = doc.createElement("div");
+            track.className = "live-char-track";
+            mirror.appendChild(track);
+            baseInputWrapper.appendChild(mirror);
+
+            // Popup-element för felmeddelande
+            const popup = doc.createElement("div");
+            popup.className = "field-error-popup";
+            if (stTextInputContainer) {
+                stTextInputContainer.appendChild(popup);
+            }
+
+            function synkaStil() {
+                const cs = window.parent.getComputedStyle(inputEl);
+                mirror.style.paddingLeft = cs.paddingLeft;
+                mirror.style.paddingRight = cs.paddingRight;
+                mirror.style.paddingTop = cs.paddingTop;
+                mirror.style.paddingBottom = cs.paddingBottom;
+                track.style.fontFamily = cs.fontFamily;
+                track.style.fontSize = cs.fontSize;
+                track.style.fontWeight = cs.fontWeight;
+                track.style.letterSpacing = cs.letterSpacing;
+            }
+
+            function uppdateraSpegel() {
+                // Omvandla f -> F automatiskt först
+                autoFormateraCase(inputEl, faltTyp);
+
+                synkaStil();
+                const val = inputEl.value || "";
+
+                if (val.length > 0) {
+                    inputEl.classList.add("mirror-active");
+                } else {
+                    inputEl.classList.remove("mirror-active");
+                }
+
+                const { teckenStatus, felMeddelanden } = valideraTeckenOchFel(faltTyp, val);
+                const harFel = felMeddelanden.length > 0;
+
+                while (track.children.length > teckenStatus.length) {
+                    track.removeChild(track.lastChild);
+                }
+
+                teckenStatus.forEach((item, idx) => {
+                    const nyKlass = item.ok
+                        ? "char-ok"
+                        : (item.rawChar === " " ? "char-bad-space" : "char-bad");
+
+                    let span = track.children[idx];
+                    if (!span) {
+                        span = doc.createElement("span");
+                        span.textContent = item.char;
+                        span.className = nyKlass;
+                        track.appendChild(span);
+                    } else {
+                        if (span.textContent !== item.char || span.className !== nyKlass) {
+                            span.textContent = item.char;
+                            span.className = nyKlass;
+                        }
+                    }
+                });
+
+                // Visa eller dölj röd fältram och Popup-ruta
+                if (harFel) {
+                    outerInputBox.classList.add("input-has-error");
+                    popup.textContent = felMeddelanden.join(" ");
+                    popup.classList.add("visible");
+                } else {
+                    outerInputBox.classList.remove("input-has-error");
+                    popup.textContent = "";
+                    popup.classList.remove("visible");
+                }
+
+                track.style.transform = `translateX(${-inputEl.scrollLeft}px)`;
+            }
+
+            inputEl.addEventListener("input", uppdateraSpegel);
+            inputEl.addEventListener("scroll", () => {
+                track.style.transform = `translateX(${-inputEl.scrollLeft}px)`;
+            });
+            uppdateraSpegel();
+        }
+
+        // 5. Koppla mot fälten i Registrera ny användare
+        function initieraModalChecks() {
+            const labels = doc.querySelectorAll('div[data-testid="stTextInput"] label');
+            labels.forEach((lbl) => {
+                const text = (lbl.innerText || "").trim();
+                const container = lbl.closest('div[data-testid="stTextInput"]');
+                if (!container) return;
+                const input = container.querySelector("input");
+                if (!input) return;
+
+                if (text.startsWith("Förnamn")) kopplaFalt(input, "fornamn");
+                else if (text.startsWith("Efternamn")) kopplaFalt(input, "efternamn");
+                else if (text.startsWith("E-postadress")) kopplaFalt(input, "epost");
+                else if (text.startsWith("Lösenord") || text.startsWith("Bekräfta lösenord")) kopplaFalt(input, "losenord");
+                else if (text.startsWith("Telefonnummer")) kopplaFalt(input, "telefon");
+            });
+        }
+
+        initieraModalChecks();
+        setTimeout(initieraModalChecks, 150);
+        </script>
+        """,
+        height=0,
+    )
+
 
 @st.dialog("Registrera ny användare")                                           # Trollformel som förvandlar funktionen nedanför till en snygg popup-ruta med rubrik
 def visa_registrering_modal():                                                  # Skapar ett recept (en "funktion") som ritar upp registreringsrutan när någon klickar
@@ -133,44 +527,71 @@ def visa_registrering_modal():                                                  
             "Skapa konto", type="primary", use_container_width=True             # "primary" gör knappen extra snygg och "use_container_width" gör den bred
         )                                                                       # Klar med knappen
 
-        if skicka:                                                              # Om någon faktiskt tryckte på "Skapa konto"-knappen händer allt nedanför:
-            fn = first_name.strip()                                             # Tvättar bort råkade mellanslag före och efter förnamnet
-            ln = last_name.strip()                                              # Tvättar bort onödiga mellanslag runt efternamnet också
-            em = email.strip()                                                  # Och städar bort mellanslag runt mejladressen
+        if skicka:
+            fn = first_name.strip()
+            ln = last_name.strip()
+            em = email.strip()
+            ph_ok, formaterad_phone, _ = validera_och_formatera_telefon(phone)
 
-            if not fn or not ln or not em or not password or not password_confirm:  # Om något av de tvingande fälten lämnades helt tomt...
-                st.error("Vänligen fyll i alla obligatoriska fält (*).")        # ...visa en röd skäll-ruta!
-            elif "  " in fn or "  " in ln or "  " in em:                        # Annars, om någon somnat på mellanslagstangenten (dubbla mellanslag)...
-                st.error("Fälten får inte innehålla dubbla mellanslag.")        # ...stoppa dem vänligt men bestämt!
-            elif fn != fn.capitalize() or ln != ln.capitalize():                # Kollar så namnen börjar med STOR bokstav följt av små (Anna, inte aNNA)
-                st.error(                                                       # Förbereder röd felruta om bokstäverna är kaos
-                    "Förnamn och efternamn måste börja med stor bokstav följt av små bokstäver."    # Förklarar regeln för användaren
-                )                                                               # Stänger felrutan
-            elif (                                                              # Påbörjar en rejäl detektivkontroll av e-postadressen:
-                "@" not in em                                                   # Saknas snabel-a?
-                or "." not in em.split("@")[-1]                                 # Saknas punkt efter snabel-a?
-                or len(em.split("@")[-1].split(".")[-1]) < 2                    # Är slutet efter sista punkten (t.ex. ".se") kortare än 2 bokstäver?
-                or " " in em                                                    # Eller har det smugit sig in ett mellanslag mitt i mejlen?
-            ):                                                                  # Om något av ovanstående mejl-fusk hittas...
-                st.error("Ange en giltig e-postadress.")                        # ...skrik till i en röd ruta!
-            elif len(password) <= 6:                                            # Kollar om lösenordet är 6 tecken eller kortare (vi krävde ju minst 7!)
-                st.error("Lösenordet måste vara längre än 6 tecken.")           # Ber användaren hitta på något längre
-            elif password != password_confirm:                                  # Kollar om de två lösenordsrutorna inte matchar varandra
-                st.error("Lösenorden matchar inte!")                            # Röd ruta: "Nu skrev du olika!"
-            else:                                                               # HURRA! Alla kontroller godkända – nu sparar vi kunden:
-                kommun_id = kommun_dict.get(vald_kommun_namn, 17)               # Slår upp kommunens ID-nummer i vår telefonbok (eller gissar på 17 om något är skumt)
-                lyckades, meddelande = backend.registrera_kund_i_db(            # Skickar ner alla uppgifter till maskinrummet (backend) för lagring i databasen
-                    fn, ln, em, password, phone, kommun_id                      # Här är paketet med kunduppgifter vi skickar med
-                )                                                               # Backend svarar med två saker: om det gick bra (lyckades) och en text (meddelande)
-                if lyckades:                                                    # Om databasen gav tummen upp:
-                    ny_user = backend.verifiera_inloggning(em, password)        # Loggar in den nyblivna kunden direkt på studs
-                    st.session_state.user = ny_user                             # Sparar kunden i appens korttidsminnet så de förblir inloggade
-                    st.session_state.boknings_meddelande = meddelande           # Lägger välkomstmeddelandet i minnet så det syns på startsidan
-                    st.rerun()                                                  # Ladda om sidan direkt så popup-rutan stängs och kunden ser sitt nya konto!
-                else:                                                           # Om databasen sa nej (t.ex. att mejlen redan fanns):
-                    st.error(meddelande)                                        # Visa databasens felmeddelande i en röd ruta
+            # Delar upp förnamn på '-' och efternamn på ' ' för att kontrollera varje del
+            fn_delar = fn.split("-")
+            ln_delar = ln.split(" ")
 
+            if not fn or not ln or not em or not password or not password_confirm:
+                st.error("Vänligen fyll i alla obligatoriska fält (*).")
 
+            # --- 1. FÖRNAMN CHECKS ---
+            # Inga mellanslag, endast bokstäver (och '-' mellan dubbelnamn), Upper sen Lower
+            elif " " in fn:
+                st.error("Förnamn får inte innehålla mellanslag (använd '-' för dubbelnamn, t.ex. Anna-lisa).")
+            elif not all(del_namn.isalpha() and len(del_namn) >= 2 for del_namn in fn_delar):
+                st.error("Förnamn får endast innehålla bokstäver (minst 2 per namndel) och ett '-' vid dubbelnamn. Inga siffror eller andra symboler.")
+            elif fn != fn.capitalize():
+                st.error("Förnamn måste börja med stor bokstav följt av små bokstäver (t.ex. Anna eller Hot-shot).")
+
+            # --- 2. EFTERNAMN CHECKS ---
+            # Inga dubbelmellanslag, inga siffror/symboler (mellanslag tillåtet för flera efternamn), Upper sen Lower
+            elif "  " in ln:
+                st.error("Efternamn får inte innehålla dubbla mellanslag.")
+            elif not all(del_namn.isalpha() and len(del_namn) >= 2 for del_namn in ln_delar):
+                st.error("Efternamn får endast innehålla bokstäver och enkla mellanslag (inga siffror eller symboler).")
+            elif ln != ln.capitalize():
+                st.error("Efternamn måste börja med stor bokstav följt av små bokstäver.")
+
+            # --- 3. E-POST CHECKS ---
+            # Inga mellanslag/dubbelmellanslag, måste ha ett '@' och giltig domän (.se, .com etc.)
+            elif " " in em or "  " in em:
+                st.error("E-postadressen får inte innehålla mellanslag.")
+            elif not re.fullmatch(r"[^@\s]+@[^@\s]+\.[a-zA-Z]{2,}", em):
+                st.error("Ange en giltig e-postadress med '@' och en giltig domän (t.ex. .se eller .com).")
+
+            # --- 4. LÖSENORD CHECKS ---
+            # Minst 7 tecken (eller exakt 7 om ni vill ha == 7) och inga mellanslag
+            elif " " in password:
+                st.error("Lösenordet får inte innehålla mellanslag.")
+            elif len(password) < 7:
+                st.error("Lösenordet måste vara minst 7 tecken långt.")
+            elif password != password_confirm:
+                st.error("Lösenorden matchar inte!")
+
+            # --- 5. TELEFONNUMMER CHECKS ---
+            elif not ph_ok:
+                st.error(formaterad_phone)
+
+            else:
+                kommun_id = kommun_dict.get(vald_kommun_namn, 17)
+                lyckades, meddelande = backend.registrera_kund_i_db(
+                    fn, ln, em, password, formaterad_phone, kommun_id
+                )
+                if lyckades:
+                    ny_user = backend.verifiera_inloggning(em, password)
+                    st.session_state.user = ny_user
+                    st.session_state.boknings_meddelande = meddelande
+                    st.rerun()
+                else:
+                    st.error(meddelande)
+
+    aktivera_realtids_validering()
 # ----------------------------------------
 # Ny avdelare i koden....
 # Redigera betald resa (Modal)
@@ -383,7 +804,7 @@ def visa_redigera_resa_modal():                                                 
 # Popup-rutan där man kan beundra alla sina kvitton
 # ----------------------------------------
 
-@st.dialog("Betalningshistorik & Kvitton", width="large")                       # Gör en bred popup-ruta för kvitton
+@st.dialog("Betalningshistorik & Kvitton", width="medium")                       # Gör en bred popup-ruta för kvitton
 def visa_kvitto_modal():                                                        # Startar receptet för kvitto-fönstret
     user = st.session_state.user                                                # Kollar i minnet vem som är inloggad
     is_admin = user["customer_id"] == 1                                         # Kollar om det är chefen (Kund #1) som är inloggad
@@ -502,6 +923,8 @@ st.markdown(                                                                    
         text-shadow: none !important;                                           /* Förbjuder skuggor bakom bokstäver */
     }}                                                                          /* Alla skuggor är nu officiellt utrotade */
 
+
+    
     /* Bakgrund */                                                              /* Här stylar vi själva huvudfönstret */
     .stApp {{                                                                   /* Väljer hela Streamlit appen */
         {bg_css}                                                                /* Klistrar in vår skånska bakgrundsbild (eller reservfärgen) */
@@ -743,14 +1166,19 @@ st.markdown(                                                                    
         font-weight: 600 !important;                                            /* Halvfet stil */
     }}                                                                          /* Dragspelstext klar */
 
-    /* Knappar utan skuggor */                                                  /* Stylar vanliga knappar i appen */
-    button[kind="primary"] {{                                                   /* Väljer huvudknappar (t.ex. "Slutför bokning & betala") */
-        background-color: #0F172A !important;                                   /* Mörk marinblå/svart bakgrund */
-        color: #FFFFFFF !important;                                             /* Vit text på knappen */
-        border: 1px solid #0F172A !important;                                   /* Mörk kantlinje */
-        border-radius: 10px !important;                                         /* Runda hörn */
-        font-weight: 600 !important;                                            /* Tydlig fet text */
-    }}                                                                          /* Huvudknappar klara */
+/* Knappar utan skuggor */
+    button[kind="primary"] {{
+        background-color: #0F172A !important;
+        color: #FFFFFF !important; /* Fixat: 6 stycken F istället för 7 */
+        border: 1px solid #0F172A !important;
+        border-radius: 10px !important;
+        font-weight: 600 !important;
+    }}
+    /* Tvingar texten inuti primary-knappar att vara vit även inuti inramade kort */
+    button[kind="primary"] p,
+    button[kind="primary"] span {{
+        color: #FFFFFF !important;
+    }}                                                                      /* Huvudknappar klara */
     button[kind="secondary"] {{                                                 /* Väljer vanliga sekundära knappar */
         background-color: #FFFFFF !important;                                   /* Vit bakgrund */
         color: #0F172A !important;                                              /* Mörk text */
@@ -768,6 +1196,16 @@ st.markdown(                                                                    
         border-radius: 10px !important;                                         /* Runda hörn */
         opacity: 1.0 !important;                                                /* 1.0 = helt ogenomskinlig */
     }}
+
+    div[data-testid="InputInstructions"],
+    div[data-testid="stTextInput"] small {{
+        display: none !important;
+        visibility: hidden !important;
+        height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }}
+
     /* Tvinga texten inuti meddelanderutan att ha rätt färg */
     div[data-testid="stAlert"] p,
     div[data-testid="stAlert"] span,
@@ -970,12 +1408,18 @@ def rendera_besoksmal_kort(item):                                               
                 else:                                                           # Om det är stängt hela veckodagen:
                     etikett = f"{plats_namn} är stängt valt datum"              # Annars står det att stället är stängt valt datum
 
+                # 1. Skapa variabeln chk_key FÖRST:
+                chk_key = f"chk_{unik_nyckel}_{st.session_state.valt_datum}"
+                
+                # 2. Synka kryssrutans status med kundvagnen:
+                st.session_state[chk_key] = redan_vald and ar_oppet
+
+                # 3. Använd chk_key i checkboxen:
                 vald = st.checkbox(                                             # Ritar ut själva kryssrutan på kortet:
                     etikett,                                                    # Texten bredvid rutan
-                    value=redan_vald and ar_oppet,                              # Är ikryssad om den låg i kundvagnen OCH stället är öppet
-                    disabled=not ar_oppet,                                      # Låser kryssrutan om stället är stängt (eller efter stängningstid) så ingen kan boka!
-                    key=f"chk_{unik_nyckel}_{st.session_state.valt_datum}",     # Unikt ID för just denna kryssruta på detta datum
-                )                                                               # Kryssruta klar
+                    disabled=not ar_oppet,                                      # Låser kryssrutan om stället är stängt
+                    key=chk_key,                                                # Unikt ID för just denna kryssruta på detta datum
+                )                                                               # Kryssruta klar                                                               # Kryssruta klar
 
                 if vald and not redan_vald and ar_oppet:                        # Om användaren PRECIS kryssade i rutan:
                     st.session_state.valda_mal.append(                          # Lägg ner utflyktsmålet i kundvagnen (session_state.valda_mal):
@@ -1022,39 +1466,154 @@ def rendera_besoksmal_kort(item):                                               
 # Nöjen, Platser, Fika, Bokning (och en hemlig Admin-flik för chefen!)
 # ----------------------------------------
 
-antal_valda = len(st.session_state.valda_mal)                                   # Räknar efter hur många utflyktsmål som ligger i kundvagnen just nu
-boknings_flik_titel = (                                                         # Bestämmer vad det ska stå på den fjärde fliken:
-    f"Bokning ({antal_valda})" if antal_valda > 0 else "Bokning"                # Visar t.ex. "Bokning (3)" om man valt 3 mål, annars bara "Bokning"
-)                                                                               # Fliknamn klart
+antal_valda = len(st.session_state.valda_mal)
+boknings_flik_titel = (
+    f"Bokning ({antal_valda})" if antal_valda > 0 else "Bokning"
+)
 
-flik_titlar = ["Nöjen", "Platser", "Fika", boknings_flik_titel]                 # Listan med våra fyra standardflikar
-ar_admin_inloggad = (                                                           # Kollar om den som sitter vid skärmen är vår administratör:
-    st.session_state.user is not None                                           # Någon måste vara inloggad...
-    and st.session_state.user["customer_id"] == 1                               # ...och ha Kund ID nummer 1!
-)                                                                               # Nu vet vi om admin är inloggad (True eller False)
-if ar_admin_inloggad:                                                           # Om det är chefen som är inloggad:
-    flik_titlar.append("Admin")                                                 # Trolla fram en femte hemlig flik längst till höger som heter "Admin"!
+# Ny flik "Populära paket" placerad mellan "Fika" och "Bokning"
+flik_titlar = ["Nöjen", "Platser", "Fika", "Populära paket", boknings_flik_titel]
+ar_admin_inloggad = (
+    st.session_state.user is not None
+    and st.session_state.user["customer_id"] == 1
+)
+if ar_admin_inloggad:
+    flik_titlar.append("Admin")
 
-flikar = st.tabs(flik_titlar)                                                   # Ber Streamlit rita ut alla flikarna på skärmen
+flikar = st.tabs(flik_titlar)
 
 
-# Kategoriflikar (Nöjen, Platser, Fika) – Här fyller vi de tre första flikarna med utflyktskort
-for flik, (titel, kat_kod) in zip(                                              # Parar ihop varje flik med rätt titel och rätt databaskod:
-    flikar[:3],                                                                 # De tre första flikarna
-    [("Nöjen", "amusement"), ("Platser", "place"), ("Fika", "fika")],           # Deras namn och databaskoder
-):                                                                              # Snurrar igenom flik 1, 2 och 3:
-    with flik:                                                                  # Kliver in i fliken
-        items = backend.filtrera_aktiviteter(kat_kod, sok_fras)                 # Ber maskinrummet hämta alla mål i kategorin som matchar det man skrivit i sökrutan
-        if not items:                                                           # Om sökningen inte gav några träffar alls under denna flik:
-            with st.container(border=True):                                     # Rita en liten ruta
-                st.write(f"Inga besöksmål under **{titel}** matchade din sökning.") # Berätta vänligt att vi kammade noll
-        else:                                                                   # Om vi hittade utflyktsmål:
-            for item in items:                                                  # Gå igenom dem ett efter ett...
-                rendera_besoksmal_kort(item)                                    # ...och rita upp dem med vår snygga kort mall!
+# 1–3. Kategoriflikar (Nöjen, Platser, Fika)
+for flik, (titel, kat_kod) in zip(
+    flikar[:3],
+    [("Nöjen", "amusement"), ("Platser", "place"), ("Fika", "fika")],
+):
+    with flik:
+        items = backend.filtrera_aktiviteter(kat_kod, sok_fras)
+        if not items:
+            with st.container(border=True):
+                st.write(f"Inga besöksmål under **{titel}** matchade din sökning.")
+        else:
+            for item in items:
+                rendera_besoksmal_kort(item)
+
+
+# 4. Fliken "Populära paket" (Rangordning 1-3)
+with flikar[3]:
+    populara_paket = backend.hamta_populara_paket(top_n=3)
+    if not populara_paket:
+        with st.container(border=True):
+            st.markdown("#### Populära paket (Topp 1–3)")
+            st.info(
+                "Det finns ännu inga bokningar med 2 eller fler resmål i databasen. "
+                "Så snart kunder bokar kombinationer av besöksmål visas topp 1–3 här!"
+            )
+    else:
+        for paket in populara_paket:
+            with st.container(border=True):
+                rang = paket["rang"]
+                antal_kop = paket["antal_bokningar"]
+                paket_namn = paket["namn"]
+                kommun_txt = ", ".join(paket["kommuner"])
+                pris_txt = (
+                    f"{paket['biljett_pris']:.0f} kr / vuxen (exkl. buss)"
+                    if paket["biljett_pris"] > 0
+                    else "Fri entré (endast bussavgift)"
+                )
+
+                # Kontrollera om samtliga resmål i paketet har öppet på valt datum
+                stangda_i_paketet = []
+                for m in paket["mal"]:
+                    dag_status = m.get("oppettider", {}).get(veckodag_nu)
+                    ar_oppet_mal, _, _ = backend.utvardera_oppetstatus(
+                        dag_status, st.session_state.valt_datum
+                    )
+                    if not ar_oppet_mal:
+                        stangda_i_paketet.append(m["plats_namn"])
+
+                status_badge = (
+                    '<span class="badge badge-open">Alla mål öppna valt datum</span>'
+                    if not stangda_i_paketet
+                    else f'<span class="badge badge-closed">Stängt valt datum: {", ".join(stangda_i_paketet)}</span>'
+                )
+
+                st.markdown(
+                    f"""
+                    <div class="card-title"><strong>#{rang} Populärt paket:</strong> {paket_namn}</div>
+                    <div class="badge-row">
+                        <span class="badge badge-neutral">Bokad {antal_kop} gånger</span>
+                        <span class="badge badge-neutral">{kommun_txt}</span>
+                        <span class="badge badge-price">{pris_txt}</span>
+                        {status_badge}
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+                st.markdown("**Ingående besöksmål i paketet:**")
+                for m in paket["mal"]:
+                    m_pris = f"{m['pris']:.0f} kr" if m["pris"] > 0 else "Fri entré"
+                    st.write(f"- **{m['plats_namn']}** ({m['municipality_name']}) · {m_pris}")
+
+                # Knapp för inloggad kund att välja hela paketet direkt
+                if st.session_state.user is not None:
+                    if stangda_i_paketet:
+                        st.markdown(
+                            f"""
+                            <div style="background-color: #FFEDD5; color: #9A3412 !important; border: 1px solid #F97316; 
+                                        border-radius: 10px; padding: 0.65rem 0.9rem; font-size: 0.85rem; font-weight: 600; margin-top: 0.5rem;">
+                                Kan inte bokas valt datum ({st.session_state.valt_datum}) eftersom följande mål har stängt: 
+                                {', '.join(stangda_i_paketet)}.
+                            </div>
+                            """,
+                            unsafe_allow_html=True,
+                        )
+                    elif lediga_platser <= 0:
+                        st.markdown(
+                            f"""
+                            <div style="background-color: #FFEDD5; color: #9A3412 !important; border: 1px solid #F97316; 
+                                        border-radius: 10px; padding: 0.65rem 0.9rem; font-size: 0.85rem; font-weight: 600; margin-top: 0.5rem;">
+                                ⚠️ Kan inte bokas eftersom bussen är fullbokad den {st.session_state.valt_datum}.
+                            </div>
+                            """,
+                            unsafe_allow_html=True,
+                        )
+                    else:
+                        if st.button(
+                            f"Välj paket #{rang}",
+                            key=f"select_pop_pkg_{rang}",
+                            type="primary",
+                            use_container_width=True,
+                        ):
+                            befintliga_nycklar = {m["nyckel"] for m in st.session_state.valda_mal}
+                            for m in paket["mal"]:
+                                unik_nyckel = f"{m['kategori']}_{m['id']}"
+                                chk_key = f"chk_{unik_nyckel}_{st.session_state.valt_datum}"
+                                st.session_state[chk_key] = True
+                                if unik_nyckel not in befintliga_nycklar:
+                                    dag_status = m.get("oppettider", {}).get(veckodag_nu)
+                                    _, substatus, _ = backend.utvardera_oppetstatus(
+                                        dag_status, st.session_state.valt_datum
+                                    )
+                                    st.session_state.valda_mal.append(
+                                        {
+                                            "nyckel": unik_nyckel,
+                                            "kategori": m["kategori"],
+                                            "id": m["id"],
+                                            "namn": m["plats_namn"],
+                                            "municipality_id": m["municipality_id"],
+                                            "pris": m["pris"],
+                                            "oppettider": m.get("oppettider", {}),
+                                            "substatus": substatus,
+                                        }
+                                    )
+                            st.rerun()
+                else:
+                    st.caption("Logga in högst upp för att välja detta paket.")                               # ...och rita upp dem med vår snygga kort mall!
 
 
 # Bokningsflik direkt på bakgrunden – Här inne ligger kassan där man betalar och bokar sin resa
-with flikar[3]:                                                                 # Kliver in i den fjärde fliken ("Bokning", som har plats nummer 3 eftersom datorer börjar räkna från 0!)
+with flikar[4]:                                                               # Kliver in i den fjärde fliken ("Bokning", som har plats nummer 3 eftersom datorer börjar räkna från 0!)
     with st.container(border=True):                                             # Skapar en snygg inramad ruta för kassan
         if st.session_state.user is None:                                       # Om besökaren inte har loggat in än:
             st.markdown("#### Min bokning")                                     # Visa en rubrik
@@ -1160,8 +1719,8 @@ with flikar[3]:                                                                 
 
 
 # Adminflik (Visas endast för Kund-ID #1) – Chefens hemliga kontrollrum!
-if ar_admin_inloggad:                                                           # Dubbelkollar att det verkligen är Administratören (Kund #1) som är inloggad:
-    with flikar[4]:                                                             # Kliver in i den femte fliken ("Admin")
+if ar_admin_inloggad:
+    with flikar[5]:                                                            # Kliver in i den femte fliken ("Admin")
         with st.container(border=True):                                         # Ritar en snygg ram runt adminpanelen
             st.markdown("#### Administratörsvy (Kund-ID #1)")                   # Rubrik för chefen
             st.caption(                                                         # Liten hjälptext som påminner om att admin även kan redigera allas resor via menyn uppe till höger

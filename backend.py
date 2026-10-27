@@ -4,7 +4,7 @@ from datetime import date, datetime                                             
 import mysql.connector                                                          # "Tolken" som gör att Python kan prata med vår SQL-databas
 import streamlit as st                                                          # Hämtar Streamlit så vi kan använda de
 from sshtunnel import SSHTunnelForwarder                                        # James Bond verktyget som bygger en krypterad, hemlig tunnel till databasservern på mitt domän
-
+from itertools import combinations                                              # Kombinationsverktyg för "populära" tabben    
 #-- Slut av import 
 
 # I Python kan vi inte använda /*Kommentarer*/ på detta viset... man måste använda "#"... men senare i CSS kan vi använda /**/ igen
@@ -99,11 +99,12 @@ BILD_FILER_NAMN = {                                                             
 }                                                                               # Namn-katalogen slut
 
 
-def rensa_bokningscache():                                                      # Städpatrullen som tömmer cachen när någon bokat, ändrat eller avbokat en resa
-    hamta_lediga_platser.clear()                                                # Tvingar appen att räkna om lediga bussplatser
-    hamta_redigerbara_bokningar.clear()                                         # Uppdaterar listan med ombokningsbara resor
+def rensa_bokningscache():
+    hamta_lediga_platser.clear()
+    hamta_redigerbara_bokningar.clear()
     hamta_betalningshistorik.clear()
-
+    hamta_populara_paket.clear()
+    
 
 def hamta_bild_for_aktivitet(kategori, item_id, namn):                          # Receptet som bestämmer vilken bild ett utflyktsmål ska få
     """Slår upp bild via (kategori, id) eller via platsens namn."""             # Kort förklaring av receptet
@@ -432,6 +433,101 @@ def filtrera_aktiviteter(kategori_kod, sok_ord=""):                             
             or s in a["lang_text"].lower()                                      # ...ELLER har sökordet någonstans i beskrivningstexten!
         ]                                                                       # Filtreringen är klar
     return items                                                                # Skickar tillbaka de utflyktsmål som klarade "filtret"!
+
+
+@st.cache_data(ttl=120)
+def hamta_populara_paket(top_n=3):
+    """
+    Hämtar och rangordnar de mest populära kombinationerna av 2 eller fler resmål
+    baserat på genomförda bokningar i databasen (Rang 1 till top_n).
+    """
+    try:
+        alla_akt = hamta_alla_aktiviteter()
+        akt_map = {f"{a['kategori']}_{a['id']}": a for a in alla_akt}
+
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        # Hämta alla ej avbokade bokningar och alla resmål som tillhör respektive boknings paket
+        cursor.execute(
+            """
+            SELECT b.booking_id, pa.amusement_id AS item_id, 'amusement' AS kategori
+            FROM bookings b
+            JOIN package_amusements pa ON b.package_id = pa.package_id
+            WHERE b.booking_status != 'Cancelled'
+            UNION ALL
+            SELECT b.booking_id, pp.place_id AS item_id, 'place' AS kategori
+            FROM bookings b
+            JOIN package_places pp ON b.package_id = pp.package_id
+            WHERE b.booking_status != 'Cancelled'
+            UNION ALL
+            SELECT b.booking_id, pf.fika_id AS item_id, 'fika' AS kategori
+            FROM bookings b
+            JOIN package_fika pf ON b.package_id = pf.package_id
+            WHERE b.booking_status != 'Cancelled'
+            """
+        )
+        rader = cursor.fetchall()
+        cursor.close()
+        conn.close()
+
+        # Gruppera valda resmålsnycklar per bokning
+        bokning_mal = {}
+        for r in rader:
+            nyckel = f"{r['kategori']}_{r['item_id']}"
+            if nyckel in akt_map:
+                bokning_mal.setdefault(r["booking_id"], set()).add(nyckel)
+
+        # Räkna hur många bokningar varje kombination av 2 eller fler resmål varit en del av
+        kombo_raknare = {}
+        for mal_set in bokning_mal.values():
+            if len(mal_set) >= 2:
+                sorterade_mal = sorted(mal_set)
+                for r_len in range(2, len(sorterade_mal) + 1):
+                    for kombo in combinations(sorterade_mal, r_len):
+                        kombo_raknare[kombo] = kombo_raknare.get(kombo, 0) + 1
+
+        if not kombo_raknare:
+            return []
+
+        # Sortera: flest bokningar först, därefter flest resmål i kombinationen
+        sorterade_kombos = sorted(
+            kombo_raknare.items(),
+            key=lambda x: (x[1], len(x[0])),
+            reverse=True,
+        )
+
+        # Filtrera bort delmängder som redan täcks av en större kombination med minst lika många köp
+        unika_topp_kombos = []
+        for kombo, antal_kop in sorterade_kombos:
+            kombo_set = set(kombo)
+            ar_delmangd = any(
+                kombo_set.issubset(set(vald_kombo)) and antal_kop <= vald_antal
+                for vald_kombo, vald_antal in unika_topp_kombos
+            )
+            if not ar_delmangd:
+                unika_topp_kombos.append((kombo, antal_kop))
+            if len(unika_topp_kombos) >= top_n:
+                break
+
+        # Bygg färdiga paket-objekt för frontend i rangordning 1-3
+        resultat = []
+        for rang, (kombo, antal_kop) in enumerate(unika_topp_kombos, start=1):
+            mal_lista = [akt_map[k] for k in kombo if k in akt_map]
+            resultat.append(
+                {
+                    "rang": rang,
+                    "antal_bokningar": antal_kop,
+                    "namn": " + ".join(m["plats_namn"] for m in mal_lista),
+                    "mal": mal_lista,
+                    "kommuner": sorted({m["municipality_name"] for m in mal_lista}),
+                    "biljett_pris": sum(m["pris"] for m in mal_lista),
+                }
+            )
+        return resultat
+
+    except mysql.connector.Error:
+        return []
 
 
 # ----------------------------------------
