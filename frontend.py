@@ -1308,7 +1308,13 @@ with col_login:                                                                 
                 visa_kvitto_modal()                                             # Öppnar kvitto popupen!
 
             if st.button("Logga ut", use_container_width=True):                 # Knapp 3: Logga ut
-                st.session_state.user = None                                    # Glöm bort vem som var inloggad
+                st.session_state.user = None   
+                
+                for k in list(st.session_state.keys()):
+                    if k.startswith("chk_"):
+                        del st.session_state[k]
+                
+                                                 # Glöm bort vem som var inloggad
                 st.session_state.valda_mal = []                                 # Töm kundvagnen på valda utflyktsmål
                 st.session_state.boknings_meddelande = None                     # Ta bort gamla meddelanden
                 st.rerun()                                                      # Ladda om sidan så vi är tillbaka i utloggat läge!
@@ -1408,40 +1414,52 @@ def rendera_besoksmal_kort(item):                                               
                 else:                                                           # Om det är stängt hela veckodagen:
                     etikett = f"{plats_namn} är stängt valt datum"              # Annars står det att stället är stängt valt datum
 
-                # 1. Skapa variabeln chk_key FÖRST:
+                # 1. Skapa variabeln chk_key:
                 chk_key = f"chk_{unik_nyckel}_{st.session_state.valt_datum}"
-                
-                # 2. Synka kryssrutans status med kundvagnen:
-                st.session_state[chk_key] = redan_vald and ar_oppet
 
-                # 3. Använd chk_key i checkboxen:
-                vald = st.checkbox(                                             # Ritar ut själva kryssrutan på kortet:
-                    etikett,                                                    # Texten bredvid rutan
-                    disabled=not ar_oppet,                                      # Låser kryssrutan om stället är stängt
-                    key=chk_key,                                                # Unikt ID för just denna kryssruta på detta datum
+                # Sätt startvärdet i session_state ENDAST om widgeten inte redan finns i minnet
+                if chk_key not in st.session_state:
+                    st.session_state[chk_key] = redan_vald and ar_oppet
+
+                def Vaxla_val(
+                    ck=chk_key,
+                    uk=unik_nyckel,
+                    kat=kategori,
+                    iid=item_id,
+                    pnamn=plats_namn,
+                    mid=municipality_id,
+                    pr=pris,
+                    opp=oppettider,
+                    sub=substatus,
+                ):
+                    if st.session_state.get(ck):
+                        if not any(m["nyckel"] == uk for m in st.session_state.valda_mal):
+                            st.session_state.valda_mal.append(
+                                {
+                                    "nyckel": uk,
+                                    "kategori": kat,
+                                    "id": iid,
+                                    "namn": pnamn,
+                                    "municipality_id": mid,
+                                    "pris": pr,
+                                    "oppettider": opp,
+                                    "substatus": sub,
+                                }
+                            )
+                    else:
+                        st.session_state.valda_mal = [
+                            m for m in st.session_state.valda_mal if m["nyckel"] != uk
+                        ]
+
+                # 2. Rita ut checkboxen (utan value=... eftersom chk_key redan är satt i session_state ovan)
+                st.checkbox(
+                    etikett,
+                    disabled=not ar_oppet,
+                    key=chk_key,
+                    on_change=Vaxla_val,
                 )                                                               # Kryssruta klar                                                               # Kryssruta klar
 
-                if vald and not redan_vald and ar_oppet:                        # Om användaren PRECIS kryssade i rutan:
-                    st.session_state.valda_mal.append(                          # Lägg ner utflyktsmålet i kundvagnen (session_state.valda_mal):
-                        {                                                       # Vi packar ner all viktig info om målet i ett litet paket:
-                            "nyckel": unik_nyckel,                              # Unika ID-koden
-                            "kategori": kategori,                               # Kategorin (nöje, plats eller fika)
-                            "id": item_id,                                      # Numret i databasen
-                            "namn": plats_namn,                                 # Namnet på stället
-                            "municipality_id": municipality_id,                 # Kommunens ID (för bussavgiften)
-                            "pris": pris,                                       # Inträdespriset
-                            "oppettider": oppettider,                           # Öppettiderna (så vi kan kolla dem om kunden byter datum sen)
-                            "substatus": substatus,                             # Sparar substatus (t.ex. "Stänger inom kort")
-                        }                                                       # Paketet är färdigpackat
-                    )                                                           # Och nedlagt i kundvagnen!
-                    st.rerun()                                                  # Ladda om sidan snabbt så siffran på fliken "Bokning (1)" uppdateras direkt!
-                elif not vald and redan_vald:                                   # Om användaren precis kryssade UR rutan:
-                    st.session_state.valda_mal = [                              # Gör om kundvagnen:
-                        m                                                       # Behåll alla utflyktsmål ("m")...
-                        for m in st.session_state.valda_mal                     # ...som redan låg i kundvagnen...
-                        if m["nyckel"] != unik_nyckel                           # ...förutom just det här målet som vi nyss kryssade ur!
-                    ]                                                           # Kundvagnen är nu uppdaterad
-                    st.rerun()                                                  # Ladda om sidan så räknaren på Boknings fliken minskar!
+                                                          # Ladda om sidan så räknaren på Boknings fliken minskar!
         else:                                                                   # Om besökaren INTE är inloggad:
             st.caption("Logga in högst upp för att lägga till i din resa.")     # Visa en vänlig liten påminnelse om att logga in först
 
@@ -1573,7 +1591,7 @@ with flikar[3]:
                             f"""
                             <div style="background-color: #FFEDD5; color: #9A3412 !important; border: 1px solid #F97316; 
                                         border-radius: 10px; padding: 0.65rem 0.9rem; font-size: 0.85rem; font-weight: 600; margin-top: 0.5rem;">
-                                ⚠️ Kan inte bokas eftersom bussen är fullbokad den {st.session_state.valt_datum}.
+                                Kan inte bokas eftersom bussen är fullbokad den {st.session_state.valt_datum}.
                             </div>
                             """,
                             unsafe_allow_html=True,
@@ -1588,8 +1606,6 @@ with flikar[3]:
                             befintliga_nycklar = {m["nyckel"] for m in st.session_state.valda_mal}
                             for m in paket["mal"]:
                                 unik_nyckel = f"{m['kategori']}_{m['id']}"
-                                chk_key = f"chk_{unik_nyckel}_{st.session_state.valt_datum}"
-                                st.session_state[chk_key] = True
                                 if unik_nyckel not in befintliga_nycklar:
                                     dag_status = m.get("oppettider", {}).get(veckodag_nu)
                                     _, substatus, _ = backend.utvardera_oppetstatus(
@@ -1607,6 +1623,10 @@ with flikar[3]:
                                             "substatus": substatus,
                                         }
                                     )
+                            # Rensa gamla kryssrutors minne så de läser in de nya valen vid st.rerun()
+                            for k in list(st.session_state.keys()):
+                                if k.startswith("chk_"):
+                                    del st.session_state[k]
                             st.rerun()
                 else:
                     st.caption("Logga in högst upp för att välja detta paket.")                               # ...och rita upp dem med vår snygga kort mall!
@@ -1712,6 +1732,11 @@ with flikar[4]:                                                               # 
                             f"Betalning genomförd med {payment_method}! Bokningsnummer #{booking_id}. " # Bekräftar betalning och nummer
                             f"Kvitto finns under Betalningshistorik i kontomenyn."  # Tipsar om var kvittot hittas
                         )                                                       # Meddelande klart
+
+                        for k in list(st.session_state.keys()):
+                            if k.startswith("chk_"):
+                                del st.session_state[k]
+                        
                         st.session_state.valda_mal = []                         # Töm kundvagnen nu när resan är bokad och betald
                         st.rerun()                                              # Ladda om sidan så det gröna hurraropet visas högst upp!
                     else:                                                       # Om något gick galet i databasen:

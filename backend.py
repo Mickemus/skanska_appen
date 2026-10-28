@@ -448,7 +448,7 @@ def hamta_populara_paket(top_n=3):
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
 
-        # Hämta alla ej avbokade bokningar och alla resmål som tillhör respektive boknings paket
+       
         cursor.execute(
             """
             SELECT b.booking_id, pa.amusement_id AS item_id, 'amusement' AS kategori
@@ -471,14 +471,14 @@ def hamta_populara_paket(top_n=3):
         cursor.close()
         conn.close()
 
-        # Gruppera valda resmålsnycklar per bokning
+       
         bokning_mal = {}
         for r in rader:
             nyckel = f"{r['kategori']}_{r['item_id']}"
             if nyckel in akt_map:
                 bokning_mal.setdefault(r["booking_id"], set()).add(nyckel)
 
-        # Räkna hur många bokningar varje kombination av 2 eller fler resmål varit en del av
+        
         kombo_raknare = {}
         for mal_set in bokning_mal.values():
             if len(mal_set) >= 2:
@@ -490,14 +490,14 @@ def hamta_populara_paket(top_n=3):
         if not kombo_raknare:
             return []
 
-        # Sortera: flest bokningar först, därefter flest resmål i kombinationen
+       
         sorterade_kombos = sorted(
             kombo_raknare.items(),
             key=lambda x: (x[1], len(x[0])),
             reverse=True,
         )
 
-        # Filtrera bort delmängder som redan täcks av en större kombination med minst lika många köp
+      
         unika_topp_kombos = []
         for kombo, antal_kop in sorterade_kombos:
             kombo_set = set(kombo)
@@ -510,7 +510,7 @@ def hamta_populara_paket(top_n=3):
             if len(unika_topp_kombos) >= top_n:
                 break
 
-        # Bygg färdiga paket-objekt för frontend i rangordning 1-3
+       
         resultat = []
         for rang, (kombo, antal_kop) in enumerate(unika_topp_kombos, start=1):
             mal_lista = [akt_map[k] for k in kombo if k in akt_map]
@@ -551,30 +551,30 @@ def hamta_kommuner():                                                           
         return []                                                                                   # Skicka tillbaka en tom lista
 
 
-def registrera_kund_i_db(first_name, last_name, email, password, phone, municipality_id):           # Sparar en ny kund i databasen
-    try:                                                                                            # Försök lägga in den nya kunden:
-        conn = get_db_connection()                                                                  # Öppna linjen till databasen
-        cursor = conn.cursor()                                                                      # Skapa budbäraren
+def registrera_kund_i_db(first_name, last_name, email, password, phone, municipality_id):
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
         query = """
-            INSERT INTO customers (first_name, last_name, email, password, phone, municipality_id)  -- Lägg till en ny rad i kundtabellen
-            VALUES (%s, %s, %s, %s, %s, %s)                                                         -- "%s" är säkra platshållare där kundens uppgifter fylls i
-        """                                                                                         # SQL-mallen är klar
-        cursor.execute(                                                                             # Skicka in mallen tillsammans med kundens riktiga uppgifter:
-            query,                                                                                  # SQL-mallen
-            (                                                                                       # Uppgifterna som ska stoppas in på "%s"-platserna:
-                first_name.strip(),                                                                 # Förnamn (städat från mellanslag)
-                last_name.strip(),                                                                  # Efternamn (städat)
-                email.strip(),                                                                      # E-post (städad)
-                password,                                                                           # Lösenordet
-                phone.strip() if phone.strip() else None,                                           # Telefonnummer (eller "None" = tomt i databasen om man inte fyllde i något)
-                municipality_id,                                                                    # Hemkommunens ID-nummer
-            ),                                                                                      # Alla 6 uppgifter är med
-        )                                                                                           # Nu ligger raden redo i databasen
+            INSERT INTO customers (first_name, last_name, email, password, phone, municipality_id)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """
+        cursor.execute(
+            query,
+            (
+                first_name.strip(),
+                last_name.strip(),
+                email.strip(),
+                password,
+                phone.strip() if phone.strip() else None,
+                municipality_id,
+            ),
+        )
         conn.commit()
-        hamta_alla_kunder.clear()                                                                               # VIKTIGT! "commit()" är som att trycka på "Spara", utan denna rad glömmer databasen allt vi nyss gjorde!
-        cursor.close()                                                                              # Stäng budbäraren
-        conn.close()                                                                                # Lägg på luren
-        return True, "Konto skapat! Du är nu inloggad."                                             # Meddela frontend att allt gick galant!
+        hamta_alla_kunder.clear()
+        cursor.close()
+        conn.close()
+        return True, "Konto skapat! Du är nu inloggad."                                    # Meddela frontend att allt gick galant!
     except mysql.connector.Error as err:                                                            # Om databasen sa STOPP:
         if err.errno == 1062:                                                                       # Felkod 1062 i MySQL betyder "Dubblett! Det här finns redan!"
             return False, "E-postadressen eller telefonnumret finns redan registrerat."             # Översätt felkoden till begriplig svenska
