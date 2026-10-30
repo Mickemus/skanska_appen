@@ -574,7 +574,7 @@ def registrera_kund_i_db(first_name, last_name, email, password, phone, municipa
         hamta_alla_kunder.clear()
         cursor.close()
         conn.close()
-        return True, "Konto skapat! Du är nu inloggad."                                    # Meddela frontend att allt gick galant!
+        return True, "Konto skapat! Du är nu inloggad."                                             # Meddela frontend att allt gick galant!
     except mysql.connector.Error as err:                                                            # Om databasen sa STOPP:
         if err.errno == 1062:                                                                       # Felkod 1062 i MySQL betyder "Dubblett! Det här finns redan!"
             return False, "E-postadressen eller telefonnumret finns redan registrerat."             # Översätt felkoden till begriplig svenska

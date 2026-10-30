@@ -6,7 +6,7 @@ import streamlit as st                       # Hämtar "Streamlit" (och ger den 
 import streamlit.components.v1 as components # Realtidscheck
 import backend                               # Kopplar in vår egen fil "backend.py", "maskinen" som sköter allt man inte ser som "user/customer"
 
-#-- Import slut av verktyg
+#-- Import slut av verktyg, utan vrätt verktyg kan vi inte bygga de vi önskar... eller hur Johan? :)
 
 
 
@@ -128,7 +128,7 @@ def aktivera_realtids_validering():
         <script>
         const doc = window.parent.document;
 
-        // 1. CSS för 1s vibration, fast röd färg och Popup-ruta vid fel
+      
         if (!doc.getElementById("skanefun-live-check-css")) {
             const style = doc.createElement("style");
             style.id = "skanefun-live-check-css";
@@ -238,7 +238,7 @@ def aktivera_realtids_validering():
             "value"
         ).set;
 
-        // 2. Automatisk Upper-sen-Lower omvandling (f -> F på första tecknet, resten små)
+       
         function autoFormateraCase(inputEl, faltTyp) {
             if (faltTyp !== "fornamn" && faltTyp !== "efternamn") return;
             const raw = inputEl.value || "";
@@ -267,7 +267,7 @@ def aktivera_realtids_validering():
             }
         }
 
-        // 3. Validera varje tecken och skapa träffsäkra popup-felmeddelanden
+       
         function valideraTeckenOchFel(faltTyp, text) {
             const teckenStatus = [];
             const felMeddelanden = [];
@@ -349,7 +349,7 @@ def aktivera_realtids_validering():
                     }
                 }
 
-                // För lösenordsfält visas '•' för giltiga tecken och röd ruta/prick vid mellanslag
+              
                 const visatTecken = (faltTyp === "losenord" && ch !== " ") ? "•" : ch;
                 teckenStatus.push({ char: visatTecken, rawChar: ch, ok: ok });
             }
@@ -357,7 +357,7 @@ def aktivera_realtids_validering():
             return { teckenStatus, felMeddelanden };
         }
 
-        // 4. Koppla spegel + popup till varje fält i registreringsformuläret
+       
         function kopplaFalt(inputEl, faltTyp) {
             if (!inputEl || inputEl.dataset.liveCheckBound === "true") return;
             inputEl.dataset.liveCheckBound = "true";
@@ -367,7 +367,7 @@ def aktivera_realtids_validering():
             const stTextInputContainer = inputEl.closest('div[data-testid="stTextInput"]');
             baseInputWrapper.style.position = "relative";
 
-            // Spegellager för tecken
+            
             const mirror = doc.createElement("div");
             mirror.className = "live-char-mirror";
             const track = doc.createElement("div");
@@ -375,7 +375,7 @@ def aktivera_realtids_validering():
             mirror.appendChild(track);
             baseInputWrapper.appendChild(mirror);
 
-            // Popup-element för felmeddelande
+           
             const popup = doc.createElement("div");
             popup.className = "field-error-popup";
             if (stTextInputContainer) {
@@ -395,7 +395,7 @@ def aktivera_realtids_validering():
             }
 
             function uppdateraSpegel() {
-                // Omvandla f -> F automatiskt först
+              
                 autoFormateraCase(inputEl, faltTyp);
 
                 synkaStil();
@@ -433,7 +433,7 @@ def aktivera_realtids_validering():
                     }
                 });
 
-                // Visa eller dölj röd fältram och Popup-ruta
+             
                 if (harFel) {
                     outerInputBox.classList.add("input-has-error");
                     popup.textContent = felMeddelanden.join(" ");
@@ -454,7 +454,7 @@ def aktivera_realtids_validering():
             uppdateraSpegel();
         }
 
-        // 5. Koppla mot fälten i Registrera ny användare
+      
         function initieraModalChecks() {
             const labels = doc.querySelectorAll('div[data-testid="stTextInput"] label');
             labels.forEach((lbl) => {
